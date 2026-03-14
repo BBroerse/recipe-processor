@@ -13,6 +13,7 @@ type Config struct {
 	Database DatabaseConfig
 	Ollama   OllamaConfig
 	Log      LogConfig
+	APIKey   string // optional: if set, all non-health endpoints require X-API-Key header
 }
 
 type ServerConfig struct {
@@ -20,12 +21,12 @@ type ServerConfig struct {
 }
 
 type DatabaseConfig struct {
-	Host       string
-	Port       int
-	User       string
-	Password   string
-	Name       string
-	SSLMode    string
+	Host     string
+	Port     int
+	User     string
+	Password string
+	Name     string
+	SSLMode  string
 }
 
 func (c *DatabaseConfig) DSN() string {
@@ -68,7 +69,8 @@ func Load() (*Config, error) {
 	}
 
 	return &Config{
-		Env: env,
+		Env:    env,
+		APIKey: os.Getenv("API_KEY"),
 		Server: ServerConfig{
 			Port: serverPort,
 		},
