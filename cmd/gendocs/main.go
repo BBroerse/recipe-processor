@@ -167,10 +167,15 @@ func main() {
 		fmt.Fprintf(os.Stderr, "error creating file: %v\n", err)
 		os.Exit(1)
 	}
-	defer f.Close()
 
 	if err := tmpl.Execute(f, configVars); err != nil {
+		_ = f.Close()
 		fmt.Fprintf(os.Stderr, "error executing template: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := f.Close(); err != nil {
+		fmt.Fprintf(os.Stderr, "error closing file: %v\n", err)
 		os.Exit(1)
 	}
 
