@@ -5,10 +5,15 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"runtime/debug"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 // contextKey is an unexported type for context keys in this package,
@@ -103,4 +108,66 @@ type statusWriter struct {
 func (w *statusWriter) WriteHeader(status int) {
 	w.status = status
 	w.ResponseWriter.WriteHeader(status)
+}
+
+// Package-level Prometheus metrics, auto-registered with the default registry.
+var (
+httpRequestsTotal = promauto.NewCounterVec(
+prometheus.CounterOpts{
+Name: "http_requests_total",
+Help: "Total number of HTTP requests processed, partitioned by method, path, and status code.",
+},
+[]string{"method", "path", "status"},
+)
+
+httpRequestDurationSeconds = promauto.NewHistogramVec(
+prometheus.HistogramOpts{
+Name:    "http_request_duration_seconds",
+Help:    "Histogram of HTTP request durations in seconds, partitioned by method and path.",
+Buckets: prometheus.DefBuckets,
+},
+[]string{"method", "path"},
+)
+)
+
+// MetricsMiddleware records Prometheus metrics for every HTTP request.
+func MetricsMiddleware(next http.Handler) http.Handler {
+return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+start := time.Now()
+sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
+next.ServeHTTP(sw, r)
+path := normalizePath(r.URL.Path)
+httpRequestsTotal.WithLabelValues(r.Method, path, strconv.Itoa(sw.status)).Inc()
+httpRequestDurationSeconds.WithLabelValues(r.Method, path).Observe(time.Since(start).Seconds())
+})
+}
+
+var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
+// normalizePath replaces dynamic path segments with {id} to keep Prometheus label cardinality bounded.
+func normalizePath(path string) string {
+switch path {
+case "/health", "/metrics", "/recipes":
+return path
+}
+segments := strings.Split(strings.Trim(path, "/"), "/")
+for i, seg := range segments {
+if uuidPattern.MatchString(seg) || isNumeric(seg) {
+segments[i] = "{id}"
+}
+}
+return "/" + strings.Join(segments, "/")
+}
+
+// isNumeric reports whether s consists entirely of ASCII digits.
+func isNumeric(s string) bool {
+if s == "" {
+return false
+}
+for _, c := range s {
+if c < '0' || c > '9' {
+return false
+}
+}
+return true
 }

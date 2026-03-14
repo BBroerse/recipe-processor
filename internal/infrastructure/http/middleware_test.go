@@ -8,6 +8,8 @@ import (
 "testing"
 
 "github.com/google/uuid"
+"github.com/prometheus/client_golang/prometheus"
+dto "github.com/prometheus/client_model/go"
 "github.com/stretchr/testify/assert"
 "github.com/stretchr/testify/require"
 
@@ -209,4 +211,143 @@ ct := rec.Header().Get("Content-Type")
 if ct != "application/json" {
 t.Errorf("expected Content-Type 'application/json', got %q", ct)
 }
+}
+
+
+// --- Metrics Middleware Tests ---
+
+func getCounterValue(t *testing.T, name string, labels prometheus.Labels) float64 {
+t.Helper()
+metrics, err := prometheus.DefaultGatherer.Gather()
+require.NoError(t, err)
+for _, mf := range metrics {
+if mf.GetName() != name {
+continue
+}
+for _, m := range mf.GetMetric() {
+if matchLabels(m.GetLabel(), labels) {
+return m.GetCounter().GetValue()
+}
+}
+}
+return 0
+}
+
+func getHistogramCount(t *testing.T, name string, labels prometheus.Labels) uint64 {
+t.Helper()
+metrics, err := prometheus.DefaultGatherer.Gather()
+require.NoError(t, err)
+for _, mf := range metrics {
+if mf.GetName() != name {
+continue
+}
+for _, m := range mf.GetMetric() {
+if matchLabels(m.GetLabel(), labels) {
+return m.GetHistogram().GetSampleCount()
+}
+}
+}
+return 0
+}
+
+func matchLabels(pairs []*dto.LabelPair, expected prometheus.Labels) bool {
+if len(pairs) != len(expected) {
+return false
+}
+for _, lp := range pairs {
+v, ok := expected[lp.GetName()]
+if !ok || v != lp.GetValue() {
+return false
+}
+}
+return true
+}
+
+func TestMetricsMiddleware_CounterIncrements(t *testing.T) {
+h := httpinfra.MetricsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+w.WriteHeader(http.StatusOK)
+}))
+before := getCounterValue(t, "http_requests_total", prometheus.Labels{
+"method": "GET", "path": "/health", "status": "200",
+})
+req := httptest.NewRequest(http.MethodGet, "/health", nil)
+rec := httptest.NewRecorder()
+h.ServeHTTP(rec, req)
+after := getCounterValue(t, "http_requests_total", prometheus.Labels{
+"method": "GET", "path": "/health", "status": "200",
+})
+assert.Equal(t, before+1, after, "counter should increment by 1 after a request")
+}
+
+func TestMetricsMiddleware_HistogramObservesDuration(t *testing.T) {
+h := httpinfra.MetricsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+w.WriteHeader(http.StatusOK)
+}))
+before := getHistogramCount(t, "http_request_duration_seconds", prometheus.Labels{
+"method": "GET", "path": "/health",
+})
+req := httptest.NewRequest(http.MethodGet, "/health", nil)
+rec := httptest.NewRecorder()
+h.ServeHTTP(rec, req)
+after := getHistogramCount(t, "http_request_duration_seconds", prometheus.Labels{
+"method": "GET", "path": "/health",
+})
+assert.Equal(t, before+1, after, "histogram sample count should increment by 1")
+}
+
+func TestMetricsMiddleware_PathNormalizesUUID(t *testing.T) {
+h := httpinfra.MetricsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+w.WriteHeader(http.StatusOK)
+}))
+before := getCounterValue(t, "http_requests_total", prometheus.Labels{
+"method": "GET", "path": "/recipes/{id}", "status": "200",
+})
+req := httptest.NewRequest(http.MethodGet, "/recipes/550e8400-e29b-41d4-a716-446655440000", nil)
+rec := httptest.NewRecorder()
+h.ServeHTTP(rec, req)
+after := getCounterValue(t, "http_requests_total", prometheus.Labels{
+"method": "GET", "path": "/recipes/{id}", "status": "200",
+})
+assert.Equal(t, before+1, after, "UUID path segments should be normalized to {id}")
+}
+
+func TestMetricsMiddleware_PathNormalizesNumeric(t *testing.T) {
+h := httpinfra.MetricsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+w.WriteHeader(http.StatusOK)
+}))
+before := getCounterValue(t, "http_requests_total", prometheus.Labels{
+"method": "GET", "path": "/recipes/{id}", "status": "200",
+})
+req := httptest.NewRequest(http.MethodGet, "/recipes/42", nil)
+rec := httptest.NewRecorder()
+h.ServeHTTP(rec, req)
+after := getCounterValue(t, "http_requests_total", prometheus.Labels{
+"method": "GET", "path": "/recipes/{id}", "status": "200",
+})
+assert.Equal(t, before+1, after, "numeric path segments should be normalized to {id}")
+}
+
+func TestMetricsMiddleware_CapturesNon200Status(t *testing.T) {
+h := httpinfra.MetricsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+w.WriteHeader(http.StatusNotFound)
+}))
+before := getCounterValue(t, "http_requests_total", prometheus.Labels{
+"method": "GET", "path": "/recipes/{id}", "status": "404",
+})
+req := httptest.NewRequest(http.MethodGet, "/recipes/550e8400-e29b-41d4-a716-446655440000", nil)
+rec := httptest.NewRecorder()
+h.ServeHTTP(rec, req)
+after := getCounterValue(t, "http_requests_total", prometheus.Labels{
+"method": "GET", "path": "/recipes/{id}", "status": "404",
+})
+assert.Equal(t, before+1, after, "404 status should be recorded correctly")
+}
+
+func TestAuthMiddleware_MetricsBypassesAuth(t *testing.T) {
+middleware := httpinfra.AuthMiddleware("test-secret-key")
+h := middleware(okHandler())
+req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+rec := httptest.NewRecorder()
+h.ServeHTTP(rec, req)
+assert.Equal(t, http.StatusOK, rec.Code, "/metrics should bypass auth")
 }

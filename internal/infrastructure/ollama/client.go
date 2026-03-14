@@ -9,7 +9,19 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/time/rate"
+)
+
+var (
+	llmRequestDurationSeconds = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name: "llm_request_duration_seconds", Help: "Histogram of LLM request durations in seconds.",
+		Buckets: []float64{0.5, 1, 2, 5, 10, 30, 60, 120},
+	})
+	llmRequestsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "llm_requests_total", Help: "Total number of LLM requests, partitioned by status.",
+	}, []string{"status"})
 )
 
 const (
@@ -83,6 +95,8 @@ func (c *Client) Process(ctx context.Context, input string) (string, error) {
 		return "", fmt.Errorf("rate limit wait: %w", err)
 	}
 
+	start := time.Now()
+
 	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 
@@ -105,19 +119,27 @@ func (c *Client) Process(ctx context.Context, input string) (string, error) {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		llmRequestDurationSeconds.Observe(time.Since(start).Seconds())
+		llmRequestsTotal.WithLabelValues("error").Inc()
 		return "", fmt.Errorf("calling ollama: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize))
+		llmRequestDurationSeconds.Observe(time.Since(start).Seconds())
+		llmRequestsTotal.WithLabelValues("error").Inc()
 		return "", fmt.Errorf("ollama returned status %d: %s", resp.StatusCode, string(respBody))
 	}
 
 	var result generateResponse
 	if err := json.NewDecoder(io.LimitReader(resp.Body, maxResponseSize)).Decode(&result); err != nil {
+		llmRequestDurationSeconds.Observe(time.Since(start).Seconds())
+		llmRequestsTotal.WithLabelValues("error").Inc()
 		return "", fmt.Errorf("decoding ollama response: %w", err)
 	}
 
+	llmRequestDurationSeconds.Observe(time.Since(start).Seconds())
+	llmRequestsTotal.WithLabelValues("success").Inc()
 	return result.Response, nil
 }

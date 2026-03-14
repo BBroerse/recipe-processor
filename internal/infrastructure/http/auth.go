@@ -18,8 +18,8 @@ func AuthMiddleware(apiKey string) func(http.Handler) http.Handler {
 				return
 			}
 
-			// Health endpoint always bypasses auth
-			if r.URL.Path == "/health" {
+			// Health and metrics endpoints always bypass auth
+			if r.URL.Path == "/health" || r.URL.Path == "/metrics" {
 				next.ServeHTTP(w, r)
 				return
 			}

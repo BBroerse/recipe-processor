@@ -6,9 +6,16 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/bbroerse/recipe-processor/internal/domain"
 )
+
+var dbQueryDurationSeconds = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	Name: "db_query_duration_seconds", Help: "Histogram of database query durations in seconds.",
+	Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1},
+}, []string{"operation"})
 
 const dbTimeout = 5 * time.Second
 
@@ -21,6 +28,7 @@ func NewRecipeRepository(pool *pgxpool.Pool) *RecipeRepository {
 }
 
 func (r *RecipeRepository) Save(ctx context.Context, recipe *domain.Recipe) error {
+	start := time.Now()
 	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
 
@@ -33,6 +41,7 @@ func (r *RecipeRepository) Save(ctx context.Context, recipe *domain.Recipe) erro
 		recipe.TotalTime, recipe.Servings, recipe.CourseType,
 		recipe.Status, recipe.CreatedAt, recipe.UpdatedAt,
 	)
+	dbQueryDurationSeconds.WithLabelValues("save").Observe(time.Since(start).Seconds())
 	if err != nil {
 		return fmt.Errorf("saving recipe: %w", err)
 	}
@@ -40,6 +49,7 @@ func (r *RecipeRepository) Save(ctx context.Context, recipe *domain.Recipe) erro
 }
 
 func (r *RecipeRepository) FindByID(ctx context.Context, id string) (*domain.Recipe, error) {
+	start := time.Now()
 	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
 
@@ -54,6 +64,7 @@ func (r *RecipeRepository) FindByID(ctx context.Context, id string) (*domain.Rec
 		&recipe.TotalTime, &recipe.Servings, &recipe.CourseType,
 		&recipe.Status, &recipe.CreatedAt, &recipe.UpdatedAt,
 	)
+	dbQueryDurationSeconds.WithLabelValues("find").Observe(time.Since(start).Seconds())
 	if err != nil {
 		return nil, fmt.Errorf("finding recipe %s: %w", id, err)
 	}
@@ -61,6 +72,7 @@ func (r *RecipeRepository) FindByID(ctx context.Context, id string) (*domain.Rec
 }
 
 func (r *RecipeRepository) UpdateStatus(ctx context.Context, id string, status domain.RecipeStatus) error {
+	start := time.Now()
 	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
 
@@ -68,6 +80,7 @@ func (r *RecipeRepository) UpdateStatus(ctx context.Context, id string, status d
 		`UPDATE recipes SET status = $1, updated_at = $2 WHERE id = $3`,
 		status, time.Now().UTC(), id,
 	)
+	dbQueryDurationSeconds.WithLabelValues("update").Observe(time.Since(start).Seconds())
 	if err != nil {
 		return fmt.Errorf("updating recipe status: %w", err)
 	}
@@ -76,6 +89,7 @@ func (r *RecipeRepository) UpdateStatus(ctx context.Context, id string, status d
 
 // UpdateResult saves the structured LLM output and raw response.
 func (r *RecipeRepository) UpdateResult(ctx context.Context, recipe *domain.Recipe) error {
+	start := time.Now()
 	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
 
@@ -87,6 +101,7 @@ func (r *RecipeRepository) UpdateResult(ctx context.Context, recipe *domain.Reci
 		recipe.TotalTime, recipe.Servings, recipe.CourseType,
 		domain.StatusCompleted, time.Now().UTC(), recipe.ID,
 	)
+	dbQueryDurationSeconds.WithLabelValues("update").Observe(time.Since(start).Seconds())
 	if err != nil {
 		return fmt.Errorf("updating recipe result: %w", err)
 	}
