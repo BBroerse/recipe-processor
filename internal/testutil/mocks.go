@@ -35,7 +35,9 @@ func NewMockRecipeRepository() *MockRecipeRepository {
 		if !ok {
 			return nil, domain.ErrRecipeNotFound
 		}
-		return r, nil
+		// Return a copy to avoid data races with concurrent writes
+		cp := *r
+		return &cp, nil
 	}
 	m.UpdateStatusFunc = func(_ context.Context, id string, status domain.RecipeStatus) error {
 		m.mu.Lock()
