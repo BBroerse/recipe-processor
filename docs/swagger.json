@@ -1,0 +1,255 @@
+{
+    "consumes": [
+        "application/json"
+    ],
+    "produces": [
+        "application/json"
+    ],
+    "swagger": "2.0",
+    "info": {
+        "description": "Async recipe processing API that uses LLM to extract structured data from raw recipe text.",
+        "title": "Recipe Processor API",
+        "contact": {},
+        "version": "1.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/",
+    "paths": {
+        "/health": {
+            "get": {
+                "description": "Returns current API health status and server time.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Health check",
+                "responses": {
+                    "200": {
+                        "description": "Health status with server time",
+                        "schema": {
+                            "$ref": "#/definitions/internal_infrastructure_http.HealthResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/recipes": {
+            "post": {
+                "description": "Accepts raw recipe text and queues it for async LLM processing. Returns immediately with a recipe ID.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "recipes"
+                ],
+                "summary": "Submit a recipe for processing",
+                "parameters": [
+                    {
+                        "description": "Recipe text to process",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_infrastructure_http.SubmitRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Recipe accepted for processing",
+                        "schema": {
+                            "$ref": "#/definitions/internal_infrastructure_http.SubmitResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request (empty text, malformed JSON, or text too long)",
+                        "schema": {
+                            "$ref": "#/definitions/internal_infrastructure_http.ErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "Request body exceeds 64KB limit",
+                        "schema": {
+                            "$ref": "#/definitions/internal_infrastructure_http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_infrastructure_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/recipes/{id}": {
+            "get": {
+                "description": "Returns the full recipe object including structured data if LLM processing is complete.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "recipes"
+                ],
+                "summary": "Get a recipe by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Recipe UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Recipe found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_bbroerse_recipe-processor_internal_domain.Recipe"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid UUID format",
+                        "schema": {
+                            "$ref": "#/definitions/internal_infrastructure_http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Recipe not found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_infrastructure_http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "github_com_bbroerse_recipe-processor_internal_domain.Recipe": {
+            "type": "object",
+            "properties": {
+                "course_type": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "ingredients": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "instructions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "raw_input": {
+                    "type": "string"
+                },
+                "raw_response": {
+                    "description": "Raw LLM response preserved for debugging/reprocessing",
+                    "type": "string"
+                },
+                "servings": {
+                    "type": "integer"
+                },
+                "status": {
+                    "$ref": "#/definitions/github_com_bbroerse_recipe-processor_internal_domain.RecipeStatus"
+                },
+                "title": {
+                    "description": "Structured fields populated after LLM processing",
+                    "type": "string"
+                },
+                "total_time": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_bbroerse_recipe-processor_internal_domain.RecipeStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "processing",
+                "completed",
+                "failed"
+            ],
+            "x-enum-varnames": [
+                "StatusPending",
+                "StatusProcessing",
+                "StatusCompleted",
+                "StatusFailed"
+            ]
+        },
+        "internal_infrastructure_http.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "EMPTY_TEXT"
+                },
+                "error": {
+                    "type": "string",
+                    "example": "recipe text cannot be empty"
+                }
+            }
+        },
+        "internal_infrastructure_http.HealthResponse": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "example": "ok"
+                },
+                "time": {
+                    "type": "string",
+                    "example": "2024-01-15T10:30:00Z"
+                }
+            }
+        },
+        "internal_infrastructure_http.SubmitRequest": {
+            "type": "object",
+            "properties": {
+                "text": {
+                    "type": "string",
+                    "example": "Mix flour, sugar, and eggs. Bake at 350°F for 30 minutes."
+                }
+            }
+        },
+        "internal_infrastructure_http.SubmitResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "pending"
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "ApiKeyAuth": {
+            "description": "API key for authentication (optional in development mode)",
+            "type": "apiKey",
+            "name": "X-API-Key",
+            "in": "header"
+        }
+    }
+}

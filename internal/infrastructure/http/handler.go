@@ -12,46 +12,71 @@ import (
 	"github.com/google/uuid"
 )
 
+// Handler handles HTTP requests for the recipe-processor API.
 type Handler struct {
 	service *application.RecipeService
 }
 
+// NewHandler creates a new Handler with the given recipe service.
 func NewHandler(service *application.RecipeService) *Handler {
 	return &Handler{service: service}
 }
 
+// RegisterRoutes registers all API routes on the given ServeMux.
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /recipes", h.submitRecipe)
 	mux.HandleFunc("GET /recipes/{id}", h.getRecipe)
 	mux.HandleFunc("GET /health", h.health)
 }
 
-type submitRequest struct {
-	Text string `json:"text"`
+// SubmitRequest is the request body for submitting a recipe.
+type SubmitRequest struct {
+	Text string `json:"text" example:"Mix flour, sugar, and eggs. Bake at 350°F for 30 minutes."`
 }
 
-type submitResponse struct {
-	ID     string `json:"id"`
-	Status string `json:"status"`
+// SubmitResponse is the response returned when a recipe is accepted for processing.
+type SubmitResponse struct {
+	ID     string `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Status string `json:"status" example:"pending"`
 }
 
-type errorResponse struct {
-	Error string `json:"error"`
-	Code  string `json:"code"`
+// ErrorResponse is the standard error response returned by the API.
+type ErrorResponse struct {
+	Error string `json:"error" example:"recipe text cannot be empty"`
+	Code  string `json:"code" example:"EMPTY_TEXT"`
+}
+
+// HealthResponse is the response returned by the health check endpoint.
+type HealthResponse struct {
+	Status string `json:"status" example:"ok"`
+	Time   string `json:"time" example:"2024-01-15T10:30:00Z"`
 }
 
 const maxRequestBodySize = 64 * 1024 // 64 KB
 
+// submitRecipe creates a new recipe processing request.
+//
+//	@Summary		Submit a recipe for processing
+//	@Description	Accepts raw recipe text and queues it for async LLM processing. Returns immediately with a recipe ID.
+//	@Tags			recipes
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		SubmitRequest	true	"Recipe text to process"
+//	@Success		202		{object}	SubmitResponse	"Recipe accepted for processing"
+//	@Failure		400		{object}	ErrorResponse	"Invalid request (empty text, malformed JSON, or text too long)"
+//	@Failure		413		{object}	ErrorResponse	"Request body exceeds 64KB limit"
+//	@Failure		500		{object}	ErrorResponse	"Internal server error"
+//	@Router			/recipes [post]
 func (h *Handler) submitRecipe(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
 
-	var req submitRequest
+	var req SubmitRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		if err.Error() == "http: request body too large" {
-			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "request body too large", Code: "PAYLOAD_TOO_LARGE"})
+			writeJSON(w, http.StatusRequestEntityTooLarge, ErrorResponse{Error: "request body too large", Code: "PAYLOAD_TOO_LARGE"})
 			return
 		}
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body", Code: "BAD_REQUEST"})
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid request body", Code: "BAD_REQUEST"})
 		return
 	}
 
@@ -59,38 +84,60 @@ func (h *Handler) submitRecipe(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, domain.ErrEmptyRecipeText):
-			writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "EMPTY_TEXT"})
+			writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error(), Code: "EMPTY_TEXT"})
 		case errors.Is(err, domain.ErrTextTooLong):
-			writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error(), Code: "TEXT_TOO_LONG"})
+			writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error(), Code: "TEXT_TOO_LONG"})
 		default:
 			slog.Error("failed to submit recipe", "error", err)
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal error", Code: "INTERNAL"})
+			writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "internal error", Code: "INTERNAL"})
 		}
 		return
 	}
 
-	writeJSON(w, http.StatusAccepted, submitResponse{ID: id, Status: string(domain.StatusPending)})
+	writeJSON(w, http.StatusAccepted, SubmitResponse{ID: id, Status: string(domain.StatusPending)})
 }
 
+// getRecipe retrieves a recipe by its ID.
+//
+//	@Summary		Get a recipe by ID
+//	@Description	Returns the full recipe object including structured data if LLM processing is complete.
+//	@Tags			recipes
+//	@Produce		json
+//	@Param			id	path		string			true	"Recipe UUID"	format(uuid)
+//	@Success		200	{object}	domain.Recipe	"Recipe found"
+//	@Failure		400	{object}	ErrorResponse	"Invalid UUID format"
+//	@Failure		404	{object}	ErrorResponse	"Recipe not found"
+//	@Router			/recipes/{id} [get]
 func (h *Handler) getRecipe(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if _, err := uuid.Parse(id); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid recipe id format", Code: "BAD_REQUEST"})
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "invalid recipe id format", Code: "BAD_REQUEST"})
 		return
 	}
 
 	recipe, err := h.service.GetRecipe(r.Context(), id)
 	if err != nil {
 		slog.Error("failed to get recipe", "id", id, "error", err) // #nosec G706 -- structured logging, no injection risk
-		writeJSON(w, http.StatusNotFound, errorResponse{Error: "recipe not found", Code: "NOT_FOUND"})
+		writeJSON(w, http.StatusNotFound, ErrorResponse{Error: "recipe not found", Code: "NOT_FOUND"})
 		return
 	}
 
 	writeJSON(w, http.StatusOK, recipe)
 }
 
+// health returns the API health status.
+//
+//	@Summary		Health check
+//	@Description	Returns current API health status and server time.
+//	@Tags			system
+//	@Produce		json
+//	@Success		200	{object}	HealthResponse	"Health status with server time"
+//	@Router			/health [get]
 func (h *Handler) health(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "time": time.Now().UTC().Format(time.RFC3339)})
+	writeJSON(w, http.StatusOK, HealthResponse{
+		Status: "ok",
+		Time:   time.Now().UTC().Format(time.RFC3339),
+	})
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

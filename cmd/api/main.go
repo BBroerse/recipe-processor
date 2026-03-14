@@ -1,3 +1,18 @@
+// Package main is the entrypoint for the recipe-processor API server.
+//
+//go:generate swag init -g cmd/api/main.go -o docs --parseDependency --parseInternal
+//
+//	@title						Recipe Processor API
+//	@version					1.0
+//	@description				Async recipe processing API that uses LLM to extract structured data from raw recipe text.
+//	@host						localhost:8080
+//	@BasePath					/
+//	@accept						json
+//	@produce					json
+//	@securityDefinitions.apikey	ApiKeyAuth
+//	@in							header
+//	@name						X-API-Key
+//	@description				API key for authentication (optional in development mode)
 package main
 
 import (
@@ -16,6 +31,10 @@ import (
 	"github.com/bbroerse/recipe-processor/internal/infrastructure/postgres"
 	"github.com/bbroerse/recipe-processor/internal/shared/config"
 	"github.com/bbroerse/recipe-processor/internal/shared/eventbus"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
+
+	// Import generated swagger docs so the spec is registered at init time.
+	_ "github.com/bbroerse/recipe-processor/docs"
 )
 
 func main() {
@@ -86,6 +105,12 @@ func run() error {
 	h := handler.NewHandler(service)
 	h.RegisterRoutes(mux)
 
+	// Swagger docs — only available in development mode
+	if cfg.Env == "development" {
+		mux.Handle("GET /docs/", swaggerDocsHandler())
+		slog.Info("swagger UI enabled at /docs/")
+	}
+
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
 		Handler:      handler.RequestIDMiddleware(handler.RecoveryMiddleware(handler.SecurityHeadersMiddleware(handler.AuthMiddleware(cfg.APIKey)(handler.LoggingMiddleware(mux))))),
@@ -137,4 +162,17 @@ func parseLogLevel(level string) slog.Level {
 	default:
 		return slog.LevelInfo
 	}
+}
+
+// swaggerDocsHandler returns an HTTP handler that serves the Swagger UI.
+// It overrides the restrictive Content-Security-Policy set by SecurityHeadersMiddleware
+// so the UI assets (inline scripts/styles) can load correctly.
+func swaggerDocsHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Security-Policy",
+			"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:")
+		httpSwagger.Handler(
+			httpSwagger.URL("/docs/doc.json"),
+		).ServeHTTP(w, r)
+	})
 }

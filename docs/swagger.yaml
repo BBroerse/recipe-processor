@@ -1,0 +1,176 @@
+basePath: /
+consumes:
+- application/json
+definitions:
+  github_com_bbroerse_recipe-processor_internal_domain.Recipe:
+    properties:
+      course_type:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      ingredients:
+        items:
+          type: string
+        type: array
+      instructions:
+        items:
+          type: string
+        type: array
+      raw_input:
+        type: string
+      raw_response:
+        description: Raw LLM response preserved for debugging/reprocessing
+        type: string
+      servings:
+        type: integer
+      status:
+        $ref: '#/definitions/github_com_bbroerse_recipe-processor_internal_domain.RecipeStatus'
+      title:
+        description: Structured fields populated after LLM processing
+        type: string
+      total_time:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  github_com_bbroerse_recipe-processor_internal_domain.RecipeStatus:
+    enum:
+    - pending
+    - processing
+    - completed
+    - failed
+    type: string
+    x-enum-varnames:
+    - StatusPending
+    - StatusProcessing
+    - StatusCompleted
+    - StatusFailed
+  internal_infrastructure_http.ErrorResponse:
+    properties:
+      code:
+        example: EMPTY_TEXT
+        type: string
+      error:
+        example: recipe text cannot be empty
+        type: string
+    type: object
+  internal_infrastructure_http.HealthResponse:
+    properties:
+      status:
+        example: ok
+        type: string
+      time:
+        example: "2024-01-15T10:30:00Z"
+        type: string
+    type: object
+  internal_infrastructure_http.SubmitRequest:
+    properties:
+      text:
+        example: Mix flour, sugar, and eggs. Bake at 350°F for 30 minutes.
+        type: string
+    type: object
+  internal_infrastructure_http.SubmitResponse:
+    properties:
+      id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      status:
+        example: pending
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: Async recipe processing API that uses LLM to extract structured data
+    from raw recipe text.
+  title: Recipe Processor API
+  version: "1.0"
+paths:
+  /health:
+    get:
+      description: Returns current API health status and server time.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Health status with server time
+          schema:
+            $ref: '#/definitions/internal_infrastructure_http.HealthResponse'
+      summary: Health check
+      tags:
+      - system
+  /recipes:
+    post:
+      consumes:
+      - application/json
+      description: Accepts raw recipe text and queues it for async LLM processing.
+        Returns immediately with a recipe ID.
+      parameters:
+      - description: Recipe text to process
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_infrastructure_http.SubmitRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Recipe accepted for processing
+          schema:
+            $ref: '#/definitions/internal_infrastructure_http.SubmitResponse'
+        "400":
+          description: Invalid request (empty text, malformed JSON, or text too long)
+          schema:
+            $ref: '#/definitions/internal_infrastructure_http.ErrorResponse'
+        "413":
+          description: Request body exceeds 64KB limit
+          schema:
+            $ref: '#/definitions/internal_infrastructure_http.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/internal_infrastructure_http.ErrorResponse'
+      summary: Submit a recipe for processing
+      tags:
+      - recipes
+  /recipes/{id}:
+    get:
+      description: Returns the full recipe object including structured data if LLM
+        processing is complete.
+      parameters:
+      - description: Recipe UUID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Recipe found
+          schema:
+            $ref: '#/definitions/github_com_bbroerse_recipe-processor_internal_domain.Recipe'
+        "400":
+          description: Invalid UUID format
+          schema:
+            $ref: '#/definitions/internal_infrastructure_http.ErrorResponse'
+        "404":
+          description: Recipe not found
+          schema:
+            $ref: '#/definitions/internal_infrastructure_http.ErrorResponse'
+      summary: Get a recipe by ID
+      tags:
+      - recipes
+produces:
+- application/json
+securityDefinitions:
+  ApiKeyAuth:
+    description: API key for authentication (optional in development mode)
+    in: header
+    name: X-API-Key
+    type: apiKey
+swagger: "2.0"
