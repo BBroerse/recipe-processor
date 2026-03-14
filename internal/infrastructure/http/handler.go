@@ -14,12 +14,13 @@ import (
 
 // Handler handles HTTP requests for the recipe-processor API.
 type Handler struct {
-	service *application.RecipeService
+	service            *application.RecipeService
+	maxRequestBodySize int64
 }
 
-// NewHandler creates a new Handler with the given recipe service.
-func NewHandler(service *application.RecipeService) *Handler {
-	return &Handler{service: service}
+// NewHandler creates a new Handler with the given recipe service and maximum request body size.
+func NewHandler(service *application.RecipeService, maxRequestBodySize int64) *Handler {
+	return &Handler{service: service, maxRequestBodySize: maxRequestBodySize}
 }
 
 // RegisterRoutes registers all API routes on the given ServeMux.
@@ -52,8 +53,6 @@ type HealthResponse struct {
 	Time   string `json:"time" example:"2024-01-15T10:30:00Z"`
 }
 
-const maxRequestBodySize = 64 * 1024 // 64 KB
-
 // submitRecipe creates a new recipe processing request.
 //
 //	@Summary		Submit a recipe for processing
@@ -68,7 +67,7 @@ const maxRequestBodySize = 64 * 1024 // 64 KB
 //	@Failure		500		{object}	ErrorResponse	"Internal server error"
 //	@Router			/recipes [post]
 func (h *Handler) submitRecipe(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
+	r.Body = http.MaxBytesReader(w, r.Body, h.maxRequestBodySize)
 
 	var req SubmitRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

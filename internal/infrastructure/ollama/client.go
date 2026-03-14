@@ -13,9 +13,7 @@ import (
 )
 
 const (
-	defaultTimeout     = 120 * time.Second
-	defaultRateLimit   = 5 // requests per second
-	maxResponseSize    = 1 << 20 // 1 MB
+	maxResponseSize = 1 << 20 // 1 MB
 )
 
 // SystemPrompt is the default instruction sent to the LLM alongside the recipe text.
@@ -42,21 +40,25 @@ OUTPUT RULES:
 JSON SCHEMA:
 {"title":"string","ingredients":["string"],"instructions":["string"],"total_time":0,"servings":0,"course_type":"appetizer|main|dessert|snack|beverage|side|other"}`
 
+// Client is an Ollama LLM client that respects rate limits and timeouts.
 type Client struct {
 	baseURL    string
 	model      string
+	timeout    time.Duration
 	httpClient *http.Client
 	limiter    *rate.Limiter
 }
 
-func NewClient(baseURL, model string) *Client {
+// NewClient creates a new Ollama LLM client with the given timeout and rate limit.
+func NewClient(baseURL, model string, timeout time.Duration, rateLimit int) *Client {
 	return &Client{
 		baseURL: baseURL,
 		model:   model,
+		timeout: timeout,
 		httpClient: &http.Client{
-			Timeout: defaultTimeout,
+			Timeout: timeout,
 		},
-		limiter: rate.NewLimiter(rate.Limit(defaultRateLimit), 1),
+		limiter: rate.NewLimiter(rate.Limit(rateLimit), 1),
 	}
 }
 
@@ -83,7 +85,7 @@ func (c *Client) Process(ctx context.Context, input string) (string, error) {
 		return "", fmt.Errorf("rate limit wait: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
 	body, err := json.Marshal(generateRequest{
