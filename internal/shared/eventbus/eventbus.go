@@ -10,6 +10,24 @@ import (
 
 	"github.com/bbroerse/recipe-processor/internal/domain"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var (
+	eventsPublishedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "events_published_total", Help: "Total number of events published.",
+	}, []string{"type"})
+	eventsProcessedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "events_processed_total", Help: "Total number of events processed by handlers.",
+	}, []string{"type", "status"})
+	eventsProcessingDurationSeconds = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Name: "events_processing_duration_seconds", Help: "Histogram of event processing durations in seconds.",
+		Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1, 5, 10, 30, 60},
+	}, []string{"type"})
+	eventsQueueDepth = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "events_queue_depth", Help: "Current number of events waiting in the event bus channel.",
+	})
 )
 
 type InMemoryEventBus struct {
@@ -31,6 +49,8 @@ func New(bufferSize int, eventLog domain.EventLogRepository) *InMemoryEventBus {
 func (b *InMemoryEventBus) Publish(_ context.Context, event domain.Event) error {
 	select {
 	case b.ch <- event:
+		eventsPublishedTotal.WithLabelValues(event.EventType()).Inc()
+		eventsQueueDepth.Set(float64(len(b.ch)))
 		return nil
 	default:
 		return fmt.Errorf("event bus buffer full, dropping event: %s", event.EventType())
@@ -114,12 +134,19 @@ func (b *InMemoryEventBus) dispatch(ctx context.Context, event domain.Event) {
 	handlers := b.handlers[event.EventType()]
 	b.mu.RUnlock()
 
+	eventsQueueDepth.Set(float64(len(b.ch)))
+
 	for _, handler := range handlers {
+		start := time.Now()
 		if err := handler(ctx, event); err != nil {
+			eventsProcessedTotal.WithLabelValues(event.EventType(), "failed").Inc()
 			slog.Error("event handler failed",
 				"event_type", event.EventType(),
 				"error", err,
 			)
+		} else {
+			eventsProcessedTotal.WithLabelValues(event.EventType(), "success").Inc()
 		}
+		eventsProcessingDurationSeconds.WithLabelValues(event.EventType()).Observe(time.Since(start).Seconds())
 	}
 }

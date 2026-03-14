@@ -1,7 +1,5 @@
 // Package main is the entrypoint for the recipe-processor API server.
 //
-//go:generate swag init -g cmd/api/main.go -o docs --parseDependency --parseInternal
-//
 //	@title						Recipe Processor API
 //	@version					1.0
 //	@description				Async recipe processing API that uses LLM to extract structured data from raw recipe text.
@@ -13,6 +11,8 @@
 //	@in							header
 //	@name						X-API-Key
 //	@description				API key for authentication (optional in development mode)
+//
+//go:generate swag init -g cmd/api/main.go -o docs --parseDependency --parseInternal
 package main
 
 import (
@@ -31,6 +31,7 @@ import (
 	"github.com/bbroerse/recipe-processor/internal/infrastructure/postgres"
 	"github.com/bbroerse/recipe-processor/internal/shared/config"
 	"github.com/bbroerse/recipe-processor/internal/shared/eventbus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 
 	// Import generated swagger docs so the spec is registered at init time.
@@ -105,6 +106,10 @@ func run() error {
 	h := handler.NewHandler(service)
 	h.RegisterRoutes(mux)
 
+	// Prometheus metrics endpoint
+	mux.Handle("GET /metrics", promhttp.Handler())
+	slog.Info("prometheus metrics enabled at /metrics")
+
 	// Swagger docs — only available in development mode
 	if cfg.Env == "development" {
 		mux.Handle("GET /docs/", swaggerDocsHandler())
@@ -113,7 +118,7 @@ func run() error {
 
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
-		Handler:      handler.RequestIDMiddleware(handler.RecoveryMiddleware(handler.SecurityHeadersMiddleware(handler.AuthMiddleware(cfg.APIKey)(handler.LoggingMiddleware(mux))))),
+		Handler:      handler.RequestIDMiddleware(handler.MetricsMiddleware(handler.RecoveryMiddleware(handler.SecurityHeadersMiddleware(handler.AuthMiddleware(cfg.APIKey)(handler.LoggingMiddleware(mux)))))),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,
