@@ -227,9 +227,12 @@ jobs:
             -e POSTGRES_DB=recipes -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=test \
             postgres:16-alpine
 
-          # Wait for PostgreSQL to be ready
-          for i in $(seq 1 15); do
-            docker exec test-pg pg_isready -U postgres && break
+          # Wait for PostgreSQL to be fully ready (init cycle: start → create DB → stop → restart)
+          for i in $(seq 1 30); do
+            if docker exec test-pg pg_isready -U postgres -d recipes 2>/dev/null; then
+              echo "PostgreSQL is ready"
+              break
+            fi
             sleep 1
           done
 
