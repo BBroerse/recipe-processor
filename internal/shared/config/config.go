@@ -78,7 +78,7 @@ func Load() (*Config, error) {
 			User:     getEnv("DB_USER", "postgres"),
 			Password: dbPassword,
 			Name:     getEnv("DB_NAME", "recipes"),
-			SSLMode:  getEnv("DB_SSLMODE", "disable"),
+			SSLMode:  getEnv("DB_SSLMODE", "require"),
 		},
 		Ollama: OllamaConfig{
 			URL:   getEnv("OLLAMA_URL", "http://localhost:11434"),

@@ -138,6 +138,7 @@ jobs:
           DB_USER: test
           DB_PASSWORD: test
           DB_NAME: testdb
+          DB_SSLMODE: disable
 
   test-e2e:
     name: E2E Tests
