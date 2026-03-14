@@ -9,7 +9,7 @@ services:
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
+      - DB_PASSWORD=${DB_PASSWORD:-secret}
       - DB_NAME=${DB_NAME:-recipes}
       - DB_SSLMODE=${DB_SSLMODE:-disable}
       - OLLAMA_URL=http://ollama:11434
@@ -27,7 +27,7 @@ services:
     environment:
       POSTGRES_DB: ${DB_NAME:-recipes}
       POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
     ports:
       - "127.0.0.1:${DB_EXPOSE_PORT:-5432}:5432"
     volumes:

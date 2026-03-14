@@ -49,14 +49,9 @@ func Load() (*Config, error) {
 
 	env := getEnv("ENV", "development")
 
-	// In production, require secrets explicitly
 	dbPassword := os.Getenv("DB_PASSWORD")
 	if dbPassword == "" {
-		if env == "production" {
-			missing = append(missing, "DB_PASSWORD")
-		} else {
-			dbPassword = "secret"
-		}
+		missing = append(missing, "DB_PASSWORD")
 	}
 
 	if len(missing) > 0 {
