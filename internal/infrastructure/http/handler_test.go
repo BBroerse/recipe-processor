@@ -25,7 +25,7 @@ func setupTestServer() (*httptest.Server, *testutil.MockRecipeRepository) {
 	}
 	bus := testutil.NewMockEventBus()
 	svc := application.NewRecipeService(repo, llm, bus)
-	h := handler.NewHandler(svc)
+	h := handler.NewHandler(svc, 64*1024)
 
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)

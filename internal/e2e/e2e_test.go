@@ -56,7 +56,7 @@ func TestE2E_SubmitAndProcessRecipe(t *testing.T) {
 
 	// Set up HTTP server
 	mux := http.NewServeMux()
-	h := handler.NewHandler(svc)
+	h := handler.NewHandler(svc, 64*1024)
 	h.RegisterRoutes(mux)
 	srv := httptest.NewServer(handler.LoggingMiddleware(mux))
 	defer srv.Close()
@@ -138,7 +138,7 @@ func TestE2E_SubmitAndLLMFails(t *testing.T) {
 	require.NoError(t, bus.Start(ctx))
 
 	mux := http.NewServeMux()
-	h := handler.NewHandler(svc)
+	h := handler.NewHandler(svc, 64*1024)
 	h.RegisterRoutes(mux)
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
@@ -183,7 +183,7 @@ func TestE2E_HealthCheck(t *testing.T) {
 	svc := application.NewRecipeService(repo, llm, bus)
 
 	mux := http.NewServeMux()
-	h := handler.NewHandler(svc)
+	h := handler.NewHandler(svc, 64*1024)
 	h.RegisterRoutes(mux)
 	srv := httptest.NewServer(mux)
 	defer srv.Close()

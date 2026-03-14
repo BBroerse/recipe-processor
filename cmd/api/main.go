@@ -70,7 +70,7 @@ func run() error {
 	}
 
 	// Database
-	pool, err := postgres.NewPool(ctx, cfg.Database.DSN())
+	pool, err := postgres.NewPool(ctx, cfg.Database.DSN(), cfg.Database.MaxConnections, cfg.Database.MinConnections)
 	if err != nil {
 		return fmt.Errorf("connecting to database: %w", err)
 	}
@@ -86,8 +86,8 @@ func run() error {
 	// Dependencies
 	repo := postgres.NewRecipeRepository(pool)
 	eventLogRepo := postgres.NewEventLogRepository(pool)
-	llmClient := ollama.NewClient(cfg.Ollama.URL, cfg.Ollama.Model)
-	bus := eventbus.New(100, eventLogRepo)
+	llmClient := ollama.NewClient(cfg.Ollama.URL, cfg.Ollama.Model, cfg.Ollama.Timeout, cfg.Ollama.RateLimit)
+	bus := eventbus.New(cfg.EventBusBufferSize, eventLogRepo)
 
 	// Application service
 	service := application.NewRecipeService(repo, llmClient, bus)
@@ -102,7 +102,7 @@ func run() error {
 
 	// HTTP server
 	mux := http.NewServeMux()
-	h := handler.NewHandler(service)
+	h := handler.NewHandler(service, cfg.Server.MaxRequestBodySize)
 	h.RegisterRoutes(mux)
 
 	// Swagger docs — only available in development mode
