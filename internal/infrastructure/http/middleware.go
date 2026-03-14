@@ -14,7 +14,7 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(sw, r)
 
-		slog.Info("http request",
+		slog.Info("http request", // #nosec G706 -- structured logging, no injection risk
 			"method", r.Method,
 			"path", r.URL.Path,
 			"status", sw.status,

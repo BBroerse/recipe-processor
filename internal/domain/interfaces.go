@@ -9,7 +9,7 @@ type RecipeRepository interface {
 	UpdateResult(ctx context.Context, recipe *Recipe) error
 }
 
-// EventLogRepository persists domain events for debugging and audit.
+// EventLogRepository persists every domain event for debugging and audit.
 type EventLogRepository interface {
 	Log(ctx context.Context, entry *EventLogEntry) error
 }

@@ -66,12 +66,15 @@ func NewMockRecipeRepository() *MockRecipeRepository {
 func (m *MockRecipeRepository) Save(ctx context.Context, recipe *domain.Recipe) error {
 	return m.SaveFunc(ctx, recipe)
 }
+
 func (m *MockRecipeRepository) FindByID(ctx context.Context, id string) (*domain.Recipe, error) {
 	return m.FindByIDFunc(ctx, id)
 }
+
 func (m *MockRecipeRepository) UpdateStatus(ctx context.Context, id string, status domain.RecipeStatus) error {
 	return m.UpdateStatusFunc(ctx, id, status)
 }
+
 func (m *MockRecipeRepository) UpdateResult(ctx context.Context, recipe *domain.Recipe) error {
 	return m.UpdateResultFunc(ctx, recipe)
 }
@@ -110,6 +113,7 @@ func NewMockEventBus() *MockEventBus {
 func (m *MockEventBus) Publish(ctx context.Context, event domain.Event) error {
 	return m.PublishFunc(ctx, event)
 }
+
 func (m *MockEventBus) Subscribe(eventType string, handler domain.EventHandler) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

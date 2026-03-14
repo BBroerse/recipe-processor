@@ -23,6 +23,10 @@ import (
 // TestE2E_SubmitAndProcessRecipe tests the full flow:
 // HTTP POST → save to repo → publish event → LLM processes → structured data saved
 func TestE2E_SubmitAndProcessRecipe(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
 	repo := testutil.NewMockRecipeRepository()
 	eventLog := testutil.NewMockEventLogRepository()
 
@@ -35,8 +39,7 @@ func TestE2E_SubmitAndProcessRecipe(t *testing.T) {
 		"course_type": "main"
 	}`
 	llm := &testutil.MockLLMProvider{
-		ProcessFunc: func(_ context.Context, input string) (string, error) {
-			assert.Contains(t, input, "pancakes")
+		ProcessFunc: func(_ context.Context, _ string) (string, error) {
 			return llmResponse, nil
 		},
 	}
@@ -97,6 +100,7 @@ func TestE2E_SubmitAndProcessRecipe(t *testing.T) {
 	assert.Equal(t, 4, recipe.Servings)
 	assert.Equal(t, "main", recipe.CourseType)
 	assert.Equal(t, domain.StatusCompleted, recipe.Status)
+	assert.Contains(t, recipe.RawInput, "pancakes", "raw input should be preserved")
 
 	// 5. Verify events were logged
 	entries := eventLog.GetEntries()
@@ -113,6 +117,10 @@ func TestE2E_SubmitAndProcessRecipe(t *testing.T) {
 // TestE2E_SubmitAndLLMFails tests the failure path:
 // HTTP POST → save → publish → LLM fails → status set to failed
 func TestE2E_SubmitAndLLMFails(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
 	repo := testutil.NewMockRecipeRepository()
 	eventLog := testutil.NewMockEventLogRepository()
 
@@ -151,17 +159,24 @@ func TestE2E_SubmitAndLLMFails(t *testing.T) {
 		return err == nil && r.Status == domain.StatusFailed
 	}, 5*time.Second, 50*time.Millisecond)
 
-	// Verify failure event logged
-	entries := eventLog.GetEntries()
-	eventTypes := make([]string, len(entries))
-	for i, e := range entries {
-		eventTypes[i] = e.EventType
-	}
-	assert.Contains(t, eventTypes, "recipe.processing_failed")
+	// Verify failure event logged (async — event bus worker persists after handler returns)
+	assert.Eventually(t, func() bool {
+		entries := eventLog.GetEntries()
+		for _, e := range entries {
+			if e.EventType == "recipe.processing_failed" {
+				return true
+			}
+		}
+		return false
+	}, 5*time.Second, 50*time.Millisecond, "recipe.processing_failed event should be logged")
 }
 
 // TestE2E_HealthCheck verifies the health endpoint works in a full setup
 func TestE2E_HealthCheck(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
+
 	repo := testutil.NewMockRecipeRepository()
 	eventLog := testutil.NewMockEventLogRepository()
 	llm := &testutil.MockLLMProvider{ProcessFunc: func(_ context.Context, _ string) (string, error) { return "{}", nil }}

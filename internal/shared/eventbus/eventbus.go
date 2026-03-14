@@ -45,7 +45,7 @@ func (b *InMemoryEventBus) Subscribe(eventType string, handler domain.EventHandl
 
 func (b *InMemoryEventBus) Start(ctx context.Context) error {
 	b.wg.Add(1)
-	go func() {
+	go func() { // #nosec G118 -- long-lived worker goroutine, not request-scoped
 		defer b.wg.Done()
 		for {
 			select {

@@ -91,7 +91,7 @@ func (c *Client) Process(ctx context.Context, input string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("calling ollama: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)

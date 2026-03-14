@@ -72,7 +72,7 @@ func (h *Handler) getRecipe(w http.ResponseWriter, r *http.Request) {
 
 	recipe, err := h.service.GetRecipe(r.Context(), id)
 	if err != nil {
-		slog.Error("failed to get recipe", "id", id, "error", err)
+		slog.Error("failed to get recipe", "id", id, "error", err) // #nosec G706 -- structured logging, no injection risk
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "recipe not found", Code: "NOT_FOUND"})
 		return
 	}

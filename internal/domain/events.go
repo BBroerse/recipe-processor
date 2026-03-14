@@ -7,6 +7,7 @@ type Event interface {
 	OccurredAt() time.Time
 }
 
+// RecipeSubmitted is published when a user submits raw recipe text for processing.
 type RecipeSubmitted struct {
 	RecipeID  string
 	Timestamp time.Time
@@ -16,6 +17,7 @@ type RecipeSubmitted struct {
 func (e RecipeSubmitted) EventType() string    { return "recipe.submitted" }
 func (e RecipeSubmitted) OccurredAt() time.Time { return e.Timestamp }
 
+// RecipeProcessed is published after the LLM successfully parses a recipe.
 type RecipeProcessed struct {
 	RecipeID    string
 	Timestamp   time.Time
@@ -25,6 +27,7 @@ type RecipeProcessed struct {
 func (e RecipeProcessed) EventType() string    { return "recipe.processed" }
 func (e RecipeProcessed) OccurredAt() time.Time { return e.Timestamp }
 
+// RecipeProcessingFailed is published when LLM processing fails or returns unusable data.
 type RecipeProcessingFailed struct {
 	RecipeID  string
 	Timestamp time.Time
