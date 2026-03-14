@@ -163,10 +163,14 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Set image tag
+        id: img
+        run: echo "tag=ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ steps.meta.outputs.version }}" | tr '[:upper:]' '[:lower:]' >> "$GITHUB_OUTPUT"
+
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ghcr.io/${{ github.repository }}:${{ github.sha }}
+          image-ref: ${{ steps.img.outputs.tag }}
           format: table
           exit-code: 1
           severity: CRITICAL,HIGH
@@ -191,7 +195,7 @@ jobs:
             -e DB_HOST=test-pg -e DB_PORT=5432 -e DB_USER=postgres \
             -e DB_PASSWORD=test -e DB_NAME=recipes \
             -e OLLAMA_URL=http://localhost:11434 \
-            ghcr.io/${{ github.repository }}:${{ github.sha }}
+            ${{ steps.img.outputs.tag }}
 
           # Wait for the API to be ready and test health endpoint
           for i in $(seq 1 10); do
