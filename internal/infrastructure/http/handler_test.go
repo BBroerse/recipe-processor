@@ -4,32 +4,54 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/bbroerse/recipe-processor/internal/application"
 	"github.com/bbroerse/recipe-processor/internal/domain"
 	handler "github.com/bbroerse/recipe-processor/internal/infrastructure/http"
-	"github.com/bbroerse/recipe-processor/internal/testutil"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func setupTestServer() (*httptest.Server, *testutil.MockRecipeRepository) {
-	repo := testutil.NewMockRecipeRepository()
-	llm := &testutil.MockLLMProvider{
-		ProcessFunc: func(_ context.Context, _ string) (string, error) {
-			return "{}", nil
-		},
+// mockRecipeService implements handler.RecipeService for handler unit tests.
+type mockRecipeService struct {
+	recipes map[string]*domain.Recipe
+}
+
+func newMockRecipeService() *mockRecipeService {
+	return &mockRecipeService{recipes: make(map[string]*domain.Recipe)}
+}
+
+func (m *mockRecipeService) SubmitRecipe(_ context.Context, rawText string) (string, error) {
+	if rawText == "" {
+		return "", domain.ErrEmptyRecipeText
 	}
-	bus := testutil.NewMockEventBus()
-	svc := application.NewRecipeService(repo, llm, bus)
+	if len(rawText) > 10_000 {
+		return "", domain.ErrTextTooLong
+	}
+	id := uuid.New().String()
+	m.recipes[id] = &domain.Recipe{ID: id, RawInput: rawText, Status: domain.StatusPending}
+	return id, nil
+}
+
+func (m *mockRecipeService) GetRecipe(_ context.Context, id string) (*domain.Recipe, error) {
+	r, ok := m.recipes[id]
+	if !ok {
+		return nil, fmt.Errorf("recipe not found: %s", id)
+	}
+	return r, nil
+}
+
+func setupTestServer() (*httptest.Server, *mockRecipeService) {
+	svc := newMockRecipeService()
 	h := handler.NewHandler(svc)
 
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
-	return httptest.NewServer(mux), repo
+	return httptest.NewServer(mux), svc
 }
 
 func TestHealth(t *testing.T) {
@@ -97,11 +119,11 @@ func TestSubmitRecipe_HTTP_InvalidJSON(t *testing.T) {
 }
 
 func TestGetRecipe_HTTP_Success(t *testing.T) {
-	srv, repo := setupTestServer()
+	srv, svc := setupTestServer()
 	defer srv.Close()
 
 	testID := "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-	repo.Recipes[testID] = &domain.Recipe{
+	svc.recipes[testID] = &domain.Recipe{
 		ID:          testID,
 		RawInput:    "Some recipe",
 		Title:       "Pasta",

@@ -1,24 +1,34 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"time"
 
-	"github.com/bbroerse/recipe-processor/internal/application"
 	"github.com/bbroerse/recipe-processor/internal/domain"
 	"github.com/google/uuid"
 )
 
+// RecipeService defines the application operations the handler depends on.
+// Following the Go idiom: "accept interfaces, return structs" — the interface
+// is owned by the consumer (infrastructure) rather than the producer (application).
+type RecipeService interface {
+	// SubmitRecipe validates and enqueues a raw recipe text for async LLM processing.
+	SubmitRecipe(ctx context.Context, rawText string) (string, error)
+	// GetRecipe retrieves a recipe by its unique ID.
+	GetRecipe(ctx context.Context, id string) (*domain.Recipe, error)
+}
+
 // Handler handles HTTP requests for the recipe-processor API.
 type Handler struct {
-	service *application.RecipeService
+	service RecipeService
 }
 
 // NewHandler creates a new Handler with the given recipe service.
-func NewHandler(service *application.RecipeService) *Handler {
+func NewHandler(service RecipeService) *Handler {
 	return &Handler{service: service}
 }
 
