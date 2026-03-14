@@ -9,6 +9,7 @@ import (
 
 	"github.com/bbroerse/recipe-processor/internal/application"
 	"github.com/bbroerse/recipe-processor/internal/domain"
+	"github.com/google/uuid"
 )
 
 type Handler struct {
@@ -73,8 +74,8 @@ func (h *Handler) submitRecipe(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) getRecipe(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	if id == "" {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "missing recipe id", Code: "BAD_REQUEST"})
+	if _, err := uuid.Parse(id); err != nil {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid recipe id format", Code: "BAD_REQUEST"})
 		return
 	}
 

@@ -100,15 +100,16 @@ func TestGetRecipe_HTTP_Success(t *testing.T) {
 	srv, repo := setupTestServer()
 	defer srv.Close()
 
-	repo.Recipes["test-123"] = &domain.Recipe{
-		ID:          "test-123",
+	testID := "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+	repo.Recipes[testID] = &domain.Recipe{
+		ID:          testID,
 		RawInput:    "Some recipe",
 		Title:       "Pasta",
 		Ingredients: []string{"pasta", "sauce"},
 		Status:      domain.StatusCompleted,
 	}
 
-	resp, err := http.Get(srv.URL + "/recipes/test-123")
+	resp, err := http.Get(srv.URL + "/recipes/" + testID)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -125,7 +126,7 @@ func TestGetRecipe_HTTP_NotFound(t *testing.T) {
 	srv, _ := setupTestServer()
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/recipes/nonexistent")
+	resp, err := http.Get(srv.URL + "/recipes/00000000-0000-0000-0000-000000000000")
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
