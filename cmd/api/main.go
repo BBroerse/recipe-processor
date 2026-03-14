@@ -44,6 +44,12 @@ func run() error {
 
 	slog.Info("starting recipe-processor", "env", cfg.Env, "port", cfg.Server.Port)
 
+	if cfg.APIKey == "" {
+		slog.Warn("API_KEY not set — authentication disabled (development mode)")
+	} else {
+		slog.Info("API key authentication enabled")
+	}
+
 	// Database
 	pool, err := postgres.NewPool(ctx, cfg.Database.DSN())
 	if err != nil {
@@ -82,7 +88,7 @@ func run() error {
 
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
-		Handler:      handler.RequestIDMiddleware(handler.RecoveryMiddleware(handler.SecurityHeadersMiddleware(handler.LoggingMiddleware(mux)))),
+		Handler:      handler.RequestIDMiddleware(handler.RecoveryMiddleware(handler.SecurityHeadersMiddleware(handler.AuthMiddleware(cfg.APIKey)(handler.LoggingMiddleware(mux))))),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,
