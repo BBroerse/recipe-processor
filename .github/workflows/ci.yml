@@ -247,8 +247,9 @@ jobs:
             postgres:16-alpine
 
           # Wait for PostgreSQL to be fully ready (init cycle: start → create DB → stop → restart)
+          # pg_isready can succeed before the restart, so we verify with an actual query
           for i in $(seq 1 30); do
-            if docker exec test-pg pg_isready -U postgres -d recipes 2>/dev/null; then
+            if docker exec test-pg psql -U postgres -d recipes -c "SELECT 1" >/dev/null 2>&1; then
               echo "PostgreSQL is ready"
               break
             fi
