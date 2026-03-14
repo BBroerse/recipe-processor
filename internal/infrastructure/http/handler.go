@@ -39,9 +39,17 @@ type errorResponse struct {
 	Code  string `json:"code"`
 }
 
+const maxRequestBodySize = 64 * 1024 // 64 KB
+
 func (h *Handler) submitRecipe(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
+
 	var req submitRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err.Error() == "http: request body too large" {
+			writeJSON(w, http.StatusRequestEntityTooLarge, errorResponse{Error: "request body too large", Code: "PAYLOAD_TOO_LARGE"})
+			return
+		}
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid request body", Code: "BAD_REQUEST"})
 		return
 	}

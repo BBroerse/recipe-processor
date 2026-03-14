@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	defaultTimeout   = 120 * time.Second
-	defaultRateLimit = 5 // requests per second
+	defaultTimeout     = 120 * time.Second
+	defaultRateLimit   = 5 // requests per second
+	maxResponseSize    = 1 << 20 // 1 MB
 )
 
 // SystemPrompt is the default instruction sent to the LLM alongside the recipe text.
@@ -94,12 +95,12 @@ func (c *Client) Process(ctx context.Context, input string) (string, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize))
 		return "", fmt.Errorf("ollama returned status %d: %s", resp.StatusCode, string(respBody))
 	}
 
 	var result generateResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxResponseSize)).Decode(&result); err != nil {
 		return "", fmt.Errorf("decoding ollama response: %w", err)
 	}
 
