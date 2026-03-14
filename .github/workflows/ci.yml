@@ -98,7 +98,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Run integration tests
-        run: go test -race -count=1 -run "Integration|Repository|EventLog" ./...
+        run: go test -race -count=1 -run "Integration|Repository|EventLog|E2E" ./...
         env:
           DB_HOST: localhost
           DB_PORT: 5432
