@@ -241,7 +241,17 @@ jobs:
 
       - name: Test Docker image
         run: |
-          # Start PostgreSQL for the API to connect to
+          set -euo pipefail
+
+          # Helper: on any failure, dump API logs and exit
+          cleanup() {
+            echo "::group::API container logs"
+            docker logs test-api 2>&1 || true
+            echo "::endgroup::"
+          }
+          trap cleanup EXIT
+
+          # ── Start PostgreSQL ──────────────────────────────────────
           docker network create test-net
           docker run -d --name test-pg --network test-net \
             -e POSTGRES_DB=recipes -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=test \
@@ -257,22 +267,93 @@ jobs:
             sleep 1
           done
 
-          # Start the API container
+          # ── Start the API container ───────────────────────────────
           docker run -d --name test-api --network test-net -p 8080:8080 \
             -e DB_HOST=test-pg -e DB_PORT=5432 -e DB_USER=postgres \
             -e DB_PASSWORD=test -e DB_NAME=recipes -e DB_SSLMODE=disable \
             -e OLLAMA_URL=http://localhost:11434 \
             ${{ steps.img.outputs.tag }}
 
-          # Wait for the API to be ready and test health endpoint
+          # Wait for the API to be ready
           for i in $(seq 1 10); do
-            if curl -sf http://localhost:8080/health; then
-              echo ""
-              echo "Health check passed"
-              exit 0
+            if curl -sf http://localhost:8080/health >/dev/null 2>&1; then
+              echo "API is ready"
+              break
+            fi
+            if [ "$i" -eq 10 ]; then
+              echo "::error::API failed to start within 20 seconds"
+              exit 1
             fi
             sleep 2
           done
-          echo "Health check failed"
-          docker logs test-api
-          exit 1
+
+          # ── 1. Health check: verify response body ─────────────────
+          echo "── Step 1: Health check (response body) ──"
+          HEALTH=$(curl -sf http://localhost:8080/health)
+          echo "$HEALTH" | jq .
+          echo "$HEALTH" | jq -e '.status == "ok"' >/dev/null
+          echo "✓ Health check passed — status is 'ok'"
+
+          # ── 2. POST /recipes: create a recipe ─────────────────────
+          echo ""
+          echo "── Step 2: POST /recipes ──"
+          RESP=$(curl -s -w "\n%{http_code}" -X POST http://localhost:8080/recipes \
+            -H "Content-Type: application/json" \
+            -d '{"text":"Mix flour and water. Knead for 10 minutes. Bake at 200C for 30 minutes."}')
+          BODY=$(echo "$RESP" | sed '$d')
+          CODE=$(echo "$RESP" | tail -1)
+          echo "Status: $CODE"
+          echo "$BODY" | jq .
+
+          if [ "$CODE" != "202" ]; then
+            echo "::error::Expected 202, got $CODE"
+            exit 1
+          fi
+
+          RECIPE_ID=$(echo "$BODY" | jq -r '.id')
+          if [ -z "$RECIPE_ID" ] || [ "$RECIPE_ID" = "null" ]; then
+            echo "::error::Response missing 'id' field"
+            exit 1
+          fi
+          echo "✓ Recipe created with id=$RECIPE_ID"
+
+          # ── 3. GET /recipes/{id}: retrieve the recipe ─────────────
+          echo ""
+          echo "── Step 3: GET /recipes/$RECIPE_ID ──"
+          RESP=$(curl -s -w "\n%{http_code}" http://localhost:8080/recipes/"$RECIPE_ID")
+          BODY=$(echo "$RESP" | sed '$d')
+          CODE=$(echo "$RESP" | tail -1)
+          echo "Status: $CODE"
+          echo "$BODY" | jq .
+
+          if [ "$CODE" != "200" ]; then
+            echo "::error::Expected 200, got $CODE"
+            exit 1
+          fi
+
+          # Verify required fields exist (id and status)
+          echo "$BODY" | jq -e '.id' >/dev/null
+          echo "$BODY" | jq -e '.status' >/dev/null
+
+          STATUS=$(echo "$BODY" | jq -r '.status')
+          echo "✓ Recipe retrieved — status=$STATUS"
+
+          # ── 4. POST /recipes with empty text: expect 400 ──────────
+          echo ""
+          echo "── Step 4: POST /recipes (empty text — expect 400) ──"
+          CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8080/recipes \
+            -H "Content-Type: application/json" \
+            -d '{"text":""}')
+          echo "Status: $CODE"
+
+          if [ "$CODE" != "400" ]; then
+            echo "::error::Expected 400 for empty text, got $CODE"
+            exit 1
+          fi
+          echo "✓ Empty text correctly rejected with 400"
+
+          # ── All smoke tests passed ────────────────────────────────
+          echo ""
+          echo "══════════════════════════════════════════"
+          echo "  All smoke tests passed ✓"
+          echo "══════════════════════════════════════════"
