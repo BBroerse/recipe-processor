@@ -1,0 +1,22 @@
+# Binaries
+/api
+*.exe
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Test output
+coverage.out
+*.test
+
+# Docker volumes (local)
+postgres_data/
+ollama_data/

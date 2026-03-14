@@ -1,0 +1,13 @@
+# Binaries
+api
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Docker volumes
+postgres_data/
+ollama_data/
