@@ -37,6 +37,7 @@ OUTPUT RULES:
 - Ensure 'total_time' is always in minutes (integer).
 - Keep ingredients and instructions as arrays of strings.
 - All fields are required. Use "other" for course_type when unclear.
+- Do NOT use placeholder values like "string" or "String" — extract real data from the recipe.
 
 JSON SCHEMA:
 {"title":"string","ingredients":["string"],"instructions":["string"],"total_time":0,"servings":0,"course_type":"appetizer|main|dessert|snack|beverage|side|other"}`
