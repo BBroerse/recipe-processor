@@ -210,3 +210,147 @@ if ct != "application/json" {
 t.Errorf("expected Content-Type 'application/json', got %q", ct)
 }
 }
+
+// --- Rate Limit Middleware Tests ---
+
+func TestRateLimitMiddleware_AllowsRequestsWithinLimit(t *testing.T) {
+rl := httpinfra.NewRateLimiter(10, 20) // 10 req/s, burst 20
+h := rl.Middleware(okHandler())
+
+for i := 0; i < 5; i++ {
+req := httptest.NewRequest(http.MethodGet, "/recipes/123", nil)
+req.RemoteAddr = "192.168.1.1:12345"
+rec := httptest.NewRecorder()
+h.ServeHTTP(rec, req)
+assert.Equal(t, http.StatusOK, rec.Code, "request %d within limit should return 200", i+1)
+}
+}
+
+func TestRateLimitMiddleware_RejectsExcessiveRequests(t *testing.T) {
+rl := httpinfra.NewRateLimiter(1, 1)
+h := rl.Middleware(okHandler())
+
+req := httptest.NewRequest(http.MethodGet, "/recipes/123", nil)
+req.RemoteAddr = "10.0.0.1:12345"
+rec := httptest.NewRecorder()
+h.ServeHTTP(rec, req)
+assert.Equal(t, http.StatusOK, rec.Code, "first request should pass")
+
+req = httptest.NewRequest(http.MethodGet, "/recipes/123", nil)
+req.RemoteAddr = "10.0.0.1:12345"
+rec = httptest.NewRecorder()
+h.ServeHTTP(rec, req)
+assert.Equal(t, http.StatusTooManyRequests, rec.Code, "excess request should return 429")
+
+var body map[string]string
+err := json.NewDecoder(rec.Body).Decode(&body)
+require.NoError(t, err, "response body must be valid JSON")
+assert.Equal(t, "rate limit exceeded", body["error"])
+assert.Equal(t, "RATE_LIMITED", body["code"])
+}
+
+func TestRateLimitMiddleware_HealthBypassesRateLimit(t *testing.T) {
+rl := httpinfra.NewRateLimiter(1, 1)
+h := rl.Middleware(okHandler())
+
+req := httptest.NewRequest(http.MethodGet, "/recipes/123", nil)
+req.RemoteAddr = "10.0.0.2:12345"
+rec := httptest.NewRecorder()
+h.ServeHTTP(rec, req)
+assert.Equal(t, http.StatusOK, rec.Code)
+
+for i := 0; i < 5; i++ {
+req = httptest.NewRequest(http.MethodGet, "/health", nil)
+req.RemoteAddr = "10.0.0.2:12345"
+rec = httptest.NewRecorder()
+h.ServeHTTP(rec, req)
+assert.Equal(t, http.StatusOK, rec.Code, "/health request %d should bypass rate limit", i+1)
+}
+}
+
+func TestRateLimitMiddleware_DifferentIPsHaveIndependentLimits(t *testing.T) {
+rl := httpinfra.NewRateLimiter(1, 1)
+h := rl.Middleware(okHandler())
+
+req := httptest.NewRequest(http.MethodGet, "/recipes/123", nil)
+req.RemoteAddr = "10.0.0.10:12345"
+rec := httptest.NewRecorder()
+h.ServeHTTP(rec, req)
+assert.Equal(t, http.StatusOK, rec.Code, "IP A first request should pass")
+
+req = httptest.NewRequest(http.MethodGet, "/recipes/123", nil)
+req.RemoteAddr = "10.0.0.10:12345"
+rec = httptest.NewRecorder()
+h.ServeHTTP(rec, req)
+assert.Equal(t, http.StatusTooManyRequests, rec.Code, "IP A second request should be limited")
+
+req = httptest.NewRequest(http.MethodGet, "/recipes/123", nil)
+req.RemoteAddr = "10.0.0.20:12345"
+rec = httptest.NewRecorder()
+h.ServeHTTP(rec, req)
+assert.Equal(t, http.StatusOK, rec.Code, "IP B first request should pass")
+}
+
+func TestRateLimitMiddleware_429IncludesRetryAfterHeader(t *testing.T) {
+rl := httpinfra.NewRateLimiter(1, 1)
+h := rl.Middleware(okHandler())
+
+req := httptest.NewRequest(http.MethodGet, "/recipes/123", nil)
+req.RemoteAddr = "10.0.0.30:12345"
+rec := httptest.NewRecorder()
+h.ServeHTTP(rec, req)
+assert.Equal(t, http.StatusOK, rec.Code)
+
+req = httptest.NewRequest(http.MethodGet, "/recipes/123", nil)
+req.RemoteAddr = "10.0.0.30:12345"
+rec = httptest.NewRecorder()
+h.ServeHTTP(rec, req)
+assert.Equal(t, http.StatusTooManyRequests, rec.Code)
+
+retryAfter := rec.Header().Get("Retry-After")
+assert.NotEmpty(t, retryAfter, "429 response must include Retry-After header")
+assert.Regexp(t, `^[1-9][0-9]*$`, retryAfter, "Retry-After must be a positive integer")
+}
+
+func TestRateLimitMiddleware_XForwardedFor(t *testing.T) {
+rl := httpinfra.NewRateLimiter(1, 1)
+h := rl.Middleware(okHandler())
+
+req := httptest.NewRequest(http.MethodGet, "/recipes/123", nil)
+req.RemoteAddr = "127.0.0.1:12345"
+req.Header.Set("X-Forwarded-For", "203.0.113.50, 70.41.3.18, 150.172.238.178")
+rec := httptest.NewRecorder()
+h.ServeHTTP(rec, req)
+assert.Equal(t, http.StatusOK, rec.Code)
+
+req = httptest.NewRequest(http.MethodGet, "/recipes/123", nil)
+req.RemoteAddr = "127.0.0.1:12345"
+req.Header.Set("X-Forwarded-For", "203.0.113.50, 70.41.3.18")
+rec = httptest.NewRecorder()
+h.ServeHTTP(rec, req)
+assert.Equal(t, http.StatusTooManyRequests, rec.Code, "same XFF client IP should share a limiter")
+
+req = httptest.NewRequest(http.MethodGet, "/recipes/123", nil)
+req.RemoteAddr = "127.0.0.2:54321"
+req.Header.Set("X-Forwarded-For", "203.0.113.50")
+rec = httptest.NewRecorder()
+h.ServeHTTP(rec, req)
+assert.Equal(t, http.StatusTooManyRequests, rec.Code, "same XFF IP via different proxy should share a limiter")
+}
+
+func TestRateLimitMiddleware_MetricsBypassesRateLimit(t *testing.T) {
+rl := httpinfra.NewRateLimiter(1, 1)
+h := rl.Middleware(okHandler())
+
+req := httptest.NewRequest(http.MethodGet, "/recipes/123", nil)
+req.RemoteAddr = "10.0.0.40:12345"
+rec := httptest.NewRecorder()
+h.ServeHTTP(rec, req)
+assert.Equal(t, http.StatusOK, rec.Code)
+
+req = httptest.NewRequest(http.MethodGet, "/metrics", nil)
+req.RemoteAddr = "10.0.0.40:12345"
+rec = httptest.NewRecorder()
+h.ServeHTTP(rec, req)
+assert.Equal(t, http.StatusOK, rec.Code, "/metrics should bypass rate limit")
+}

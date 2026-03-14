@@ -32,6 +32,7 @@ import (
 	"github.com/bbroerse/recipe-processor/internal/shared/config"
 	"github.com/bbroerse/recipe-processor/internal/shared/eventbus"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
+	"golang.org/x/time/rate"
 
 	// Import generated swagger docs so the spec is registered at init time.
 	_ "github.com/bbroerse/recipe-processor/docs"
@@ -111,9 +112,35 @@ func run() error {
 		slog.Info("swagger UI enabled at /docs/")
 	}
 
+	// Rate limiter — per-IP, configurable via RATE_LIMIT / RATE_LIMIT_BURST env vars
+	var rateLimiter *handler.RateLimiter
+	if cfg.Server.RateLimit > 0 {
+		rateLimiter = handler.NewRateLimiter(
+			rate.Limit(cfg.Server.RateLimit),
+			cfg.Server.RateLimitBurst,
+		)
+		slog.Info("rate limiting enabled",
+			"rate", cfg.Server.RateLimit,
+			"burst", cfg.Server.RateLimitBurst,
+		)
+	} else {
+		slog.Warn("rate limiting disabled (RATE_LIMIT=0)")
+	}
+
+	// Build middleware chain (outermost \u2192 innermost):
+	// RequestID \u2192 Recovery \u2192 SecurityHeaders \u2192 Auth \u2192 RateLimit \u2192 Logging \u2192 Handler
+	var chain http.Handler = handler.LoggingMiddleware(mux)
+	if rateLimiter != nil {
+		chain = rateLimiter.Middleware(chain)
+	}
+	chain = handler.AuthMiddleware(cfg.APIKey)(chain)
+	chain = handler.SecurityHeadersMiddleware(chain)
+	chain = handler.RecoveryMiddleware(chain)
+	chain = handler.RequestIDMiddleware(chain)
+
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
-		Handler:      handler.RequestIDMiddleware(handler.RecoveryMiddleware(handler.SecurityHeadersMiddleware(handler.AuthMiddleware(cfg.APIKey)(handler.LoggingMiddleware(mux))))),
+		Handler:      chain,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,

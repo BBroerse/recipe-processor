@@ -17,7 +17,9 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Port int
+	Port           int
+	RateLimit      float64 // requests per second (0 = disabled)
+	RateLimitBurst int     // maximum burst size
 }
 
 type DatabaseConfig struct {
@@ -68,11 +70,23 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("invalid PORT: %w", err)
 	}
 
+	rateLimit, err := strconv.ParseFloat(getEnv("RATE_LIMIT", "10"), 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid RATE_LIMIT: %w", err)
+	}
+
+	rateLimitBurst, err := strconv.Atoi(getEnv("RATE_LIMIT_BURST", "20"))
+	if err != nil {
+		return nil, fmt.Errorf("invalid RATE_LIMIT_BURST: %w", err)
+	}
+
 	return &Config{
 		Env:    env,
 		APIKey: os.Getenv("API_KEY"),
 		Server: ServerConfig{
-			Port: serverPort,
+			Port:           serverPort,
+			RateLimit:      rateLimit,
+			RateLimitBurst: rateLimitBurst,
 		},
 		Database: DatabaseConfig{
 			Host:     getEnv("DB_HOST", "localhost"),
