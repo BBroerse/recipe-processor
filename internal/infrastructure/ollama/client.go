@@ -37,6 +37,15 @@ OUTPUT RULES:
 - Ensure 'total_time' is always in minutes (integer).
 - Keep ingredients and instructions as arrays of strings.
 - All fields are required. Use "other" for course_type when unclear.
+- Do NOT use placeholder values like "string" or "String" — extract real data from the recipe.
+
+EXAMPLE INPUT:
+<RECIPE_TEXT>
+Pancakes for 4. 300g flour, 4 eggs, 500ml milk, pinch of salt. Mix flour with eggs, add milk. Let rest 30 min. Fry in butter. 45 minutes total.
+</RECIPE_TEXT>
+
+EXAMPLE OUTPUT:
+{"title":"Pannenkoeken","ingredients":["300g bloem","4 eieren","500ml melk","snufje zout","boter"],"instructions":["Meng de bloem met de eieren","Voeg de melk toe","Laat 30 minuten rusten","Bak in boter"],"total_time":45,"servings":4,"course_type":"main"}
 
 JSON SCHEMA:
 {"title":"string","ingredients":["string"],"instructions":["string"],"total_time":0,"servings":0,"course_type":"appetizer|main|dessert|snack|beverage|side|other"}`

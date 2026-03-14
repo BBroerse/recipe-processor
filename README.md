@@ -30,7 +30,7 @@ cp .env.example .env   # configure secrets
 docker compose up --build
 ```
 
-The API starts on `localhost:8080`. Ollama pulls `tinyllama` on first run (~5 min).
+The API starts on `localhost:8080`. Ollama pulls `mistral` on first run (~10 min).
 
 ### Local Development
 
@@ -77,7 +77,7 @@ All config via environment variables. See [`.env.example`](.env.example) for the
 | `PORT` | `8080` | API server port |
 | `ENV` | `development` | Environment (`development` / `production`) |
 | `OLLAMA_URL` | `http://localhost:11434` | Ollama API endpoint |
-| `OLLAMA_MODEL` | `tinyllama` | LLM model to use |
+| `OLLAMA_MODEL` | `mistral` | LLM model to use |
 | `DB_HOST` | `localhost` | PostgreSQL host |
 | `DB_NAME` | `recipes` | Database name |
 | `LOG_LEVEL` | `info` | Log level (`debug`, `info`, `warn`, `error`) |
