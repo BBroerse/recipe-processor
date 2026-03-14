@@ -1,0 +1,56 @@
+name: PR Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  label-size:
+    name: PR Size Label
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Label PR by size
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            const changes = files.reduce((sum, f) => sum + f.additions + f.deletions, 0);
+            let label = 'size/S';
+            if (changes > 500) label = 'size/XL';
+            else if (changes > 200) label = 'size/L';
+            else if (changes > 50) label = 'size/M';
+
+            const labels = (await github.rest.issues.listLabelsOnIssue({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            })).data.map(l => l.name).filter(n => n.startsWith('size/'));
+
+            for (const old of labels) {
+              if (old !== label) {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  name: old,
+                });
+              }
+            }
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: [label],
+            });

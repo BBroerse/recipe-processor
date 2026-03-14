@@ -1,0 +1,30 @@
+{
+  "servers": {
+    "postgres": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "postgresql://postgres:secret@localhost:5432/recipes"
+      ]
+    },
+    "fetch": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@anthropic-ai/mcp-fetch"
+      ]
+    },
+    "docker": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-v",
+        "/var/run/docker.sock:/var/run/docker.sock",
+        "mcp/docker"
+      ]
+    }
+  }
+}
