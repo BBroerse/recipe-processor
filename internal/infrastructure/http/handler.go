@@ -11,14 +11,17 @@ import (
 	"github.com/bbroerse/recipe-processor/internal/domain"
 )
 
+// Handler serves HTTP endpoints for recipe operations.
 type Handler struct {
 	service *application.RecipeService
 }
 
+// NewHandler creates an HTTP handler with the given recipe service.
 func NewHandler(service *application.RecipeService) *Handler {
 	return &Handler{service: service}
 }
 
+// RegisterRoutes attaches all recipe-related routes to the given mux.
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /recipes", h.submitRecipe)
 	mux.HandleFunc("GET /recipes/{id}", h.getRecipe)
@@ -72,7 +75,7 @@ func (h *Handler) getRecipe(w http.ResponseWriter, r *http.Request) {
 
 	recipe, err := h.service.GetRecipe(r.Context(), id)
 	if err != nil {
-		slog.Error("failed to get recipe", "id", id, "error", err)
+		slog.Error("failed to get recipe", "id", id, "error", err) // #nosec G706 -- structured logging, no injection risk
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "recipe not found", Code: "NOT_FOUND"})
 		return
 	}

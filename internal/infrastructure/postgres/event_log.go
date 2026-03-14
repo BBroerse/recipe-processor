@@ -9,14 +9,17 @@ import (
 	"github.com/bbroerse/recipe-processor/internal/domain"
 )
 
+// EventLogRepository implements domain.EventLogRepository using PostgreSQL.
 type EventLogRepository struct {
 	pool *pgxpool.Pool
 }
 
+// NewEventLogRepository creates a new PostgreSQL-backed event log repository.
 func NewEventLogRepository(pool *pgxpool.Pool) *EventLogRepository {
 	return &EventLogRepository{pool: pool}
 }
 
+// Log persists a domain event entry.
 func (r *EventLogRepository) Log(ctx context.Context, entry *domain.EventLogEntry) error {
 	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()

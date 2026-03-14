@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// NewPool creates a pgx connection pool and verifies connectivity.
 func NewPool(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()

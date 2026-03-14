@@ -22,8 +22,10 @@ type Recipe struct {
 	RawResponse string `json:"raw_response,omitempty"`
 }
 
+// RecipeStatus represents the processing state of a recipe.
 type RecipeStatus string
 
+// Recipe processing statuses.
 const (
 	StatusPending    RecipeStatus = "pending"
 	StatusProcessing RecipeStatus = "processing"

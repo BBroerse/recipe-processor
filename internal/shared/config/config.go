@@ -7,6 +7,7 @@ import (
 	"strings"
 )
 
+// Config holds all application configuration.
 type Config struct {
 	Env      string // development, production
 	Server   ServerConfig
@@ -15,10 +16,12 @@ type Config struct {
 	Log      LogConfig
 }
 
+// ServerConfig holds HTTP server configuration.
 type ServerConfig struct {
 	Port int
 }
 
+// DatabaseConfig holds PostgreSQL connection configuration.
 type DatabaseConfig struct {
 	Host       string
 	Port       int
@@ -28,16 +31,19 @@ type DatabaseConfig struct {
 	SSLMode    string
 }
 
+// DSN returns the PostgreSQL connection string.
 func (c *DatabaseConfig) DSN() string {
 	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
 		c.User, c.Password, c.Host, c.Port, c.Name, c.SSLMode)
 }
 
+// OllamaConfig holds LLM provider configuration.
 type OllamaConfig struct {
 	URL   string
 	Model string
 }
 
+// LogConfig holds logging configuration.
 type LogConfig struct {
 	Level string // debug, info, warn, error
 }

@@ -11,12 +11,14 @@ import (
 	"github.com/google/uuid"
 )
 
+// RecipeService orchestrates recipe submission and LLM processing.
 type RecipeService struct {
 	repo     domain.RecipeRepository
 	llm      domain.LLMProvider
 	eventBus domain.EventBus
 }
 
+// NewRecipeService creates a RecipeService with the given dependencies.
 func NewRecipeService(repo domain.RecipeRepository, llm domain.LLMProvider, eventBus domain.EventBus) *RecipeService {
 	return &RecipeService{
 		repo:     repo,
