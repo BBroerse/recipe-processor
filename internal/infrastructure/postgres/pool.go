@@ -8,7 +8,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func NewPool(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
+// NewPool creates a new PostgreSQL connection pool with the given connection limits.
+func NewPool(ctx context.Context, dsn string, maxConns, minConns int32) (*pgxpool.Pool, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
@@ -16,8 +17,8 @@ func NewPool(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parsing database config: %w", err)
 	}
-	config.MaxConns = 25
-	config.MinConns = 2
+	config.MaxConns = maxConns
+	config.MinConns = minConns
 
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {

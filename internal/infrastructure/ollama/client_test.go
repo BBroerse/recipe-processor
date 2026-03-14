@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/bbroerse/recipe-processor/internal/infrastructure/ollama"
 	"github.com/stretchr/testify/assert"
@@ -30,7 +31,7 @@ func TestOllamaClient_Process_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := ollama.NewClient(server.URL, "test-model")
+	client := ollama.NewClient(server.URL, "test-model", 120*time.Second, 5)
 	result, err := client.Process(context.Background(), "Make pancakes")
 
 	require.NoError(t, err)
@@ -44,7 +45,7 @@ func TestOllamaClient_Process_ServerError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := ollama.NewClient(server.URL, "test-model")
+	client := ollama.NewClient(server.URL, "test-model", 120*time.Second, 5)
 	_, err := client.Process(context.Background(), "test")
 
 	assert.Error(t, err)
@@ -57,7 +58,7 @@ func TestOllamaClient_Process_InvalidJSON(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := ollama.NewClient(server.URL, "test-model")
+	client := ollama.NewClient(server.URL, "test-model", 120*time.Second, 5)
 	_, err := client.Process(context.Background(), "test")
 
 	assert.Error(t, err)
@@ -71,7 +72,7 @@ func TestOllamaClient_Process_ContextCancelled(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := ollama.NewClient(server.URL, "test-model")
+	client := ollama.NewClient(server.URL, "test-model", 120*time.Second, 5)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
@@ -90,7 +91,7 @@ func TestOllamaClient_SystemPrompt(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := ollama.NewClient(server.URL, "test-model")
+	client := ollama.NewClient(server.URL, "test-model", 120*time.Second, 5)
 	_, _ = client.Process(context.Background(), "test")
 
 	assert.Contains(t, receivedSystem, "recipe parser")
@@ -135,7 +136,7 @@ func TestOllamaClient_Process_InjectionWrapped(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := ollama.NewClient(server.URL, "test-model")
+	client := ollama.NewClient(server.URL, "test-model", 120*time.Second, 5)
 	_, err := client.Process(context.Background(), malicious)
 
 	require.NoError(t, err)

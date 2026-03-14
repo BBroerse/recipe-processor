@@ -1,7 +1,5 @@
 // Package main is the entrypoint for the recipe-processor API server.
 //
-//go:generate swag init -g cmd/api/main.go -o docs --parseDependency --parseInternal
-//
 //	@title						Recipe Processor API
 //	@version					1.0
 //	@description				Async recipe processing API that uses LLM to extract structured data from raw recipe text.
@@ -13,6 +11,8 @@
 //	@in							header
 //	@name						X-API-Key
 //	@description				API key for authentication (optional in development mode)
+//
+//go:generate swag init -g cmd/api/main.go -o docs --parseDependency --parseInternal
 package main
 
 import (
@@ -70,7 +70,7 @@ func run() error {
 	}
 
 	// Database
-	pool, err := postgres.NewPool(ctx, cfg.Database.DSN())
+	pool, err := postgres.NewPool(ctx, cfg.Database.DSN(), cfg.Database.MaxConnections, cfg.Database.MinConnections)
 	if err != nil {
 		return fmt.Errorf("connecting to database: %w", err)
 	}
@@ -86,8 +86,8 @@ func run() error {
 	// Dependencies
 	repo := postgres.NewRecipeRepository(pool)
 	eventLogRepo := postgres.NewEventLogRepository(pool)
-	llmClient := ollama.NewClient(cfg.Ollama.URL, cfg.Ollama.Model)
-	bus := eventbus.New(100, eventLogRepo)
+	llmClient := ollama.NewClient(cfg.Ollama.URL, cfg.Ollama.Model, cfg.Ollama.Timeout, cfg.Ollama.RateLimit)
+	bus := eventbus.New(cfg.EventBusBufferSize, eventLogRepo)
 
 	// Application service
 	service := application.NewRecipeService(repo, llmClient, bus)
@@ -102,7 +102,7 @@ func run() error {
 
 	// HTTP server
 	mux := http.NewServeMux()
-	h := handler.NewHandler(service)
+	h := handler.NewHandler(service, cfg.Server.MaxRequestBodySize)
 	h.RegisterRoutes(mux)
 
 	// Swagger docs — only available in development mode
