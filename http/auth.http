@@ -1,0 +1,28 @@
+### Request without API key — expect 401 (when auth enabled)
+POST {{baseUrl}}/recipes
+Content-Type: application/json
+
+{
+  "text": "Simple recipe to test auth"
+}
+
+### Request with wrong API key — expect 401
+POST {{baseUrl}}/recipes
+Content-Type: application/json
+X-API-Key: wrong-key-here
+
+{
+  "text": "Simple recipe to test auth"
+}
+
+### Request with correct API key — expect 202
+POST {{baseUrl}}/recipes
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "text": "Simple recipe to test auth"
+}
+
+### Health check without API key — expect 200 (always bypasses auth)
+GET {{baseUrl}}/health
