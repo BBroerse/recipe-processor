@@ -259,7 +259,7 @@ jobs:
           # Start the API container
           docker run -d --name test-api --network test-net -p 8080:8080 \
             -e DB_HOST=test-pg -e DB_PORT=5432 -e DB_USER=postgres \
-            -e DB_PASSWORD=test -e DB_NAME=recipes \
+            -e DB_PASSWORD=test -e DB_NAME=recipes -e DB_SSLMODE=disable \
             -e OLLAMA_URL=http://localhost:11434 \
             ${{ steps.img.outputs.tag }}
 
