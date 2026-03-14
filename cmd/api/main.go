@@ -1,7 +1,5 @@
 // Package main is the entrypoint for the recipe-processor API server.
 //
-//go:generate swag init -g cmd/api/main.go -o docs --parseDependency --parseInternal
-//
 //	@title						Recipe Processor API
 //	@version					1.0
 //	@description				Async recipe processing API that uses LLM to extract structured data from raw recipe text.
@@ -13,6 +11,8 @@
 //	@in							header
 //	@name						X-API-Key
 //	@description				API key for authentication (optional in development mode)
+//
+//go:generate swag init -g cmd/api/main.go -o docs --parseDependency --parseInternal
 package main
 
 import (
