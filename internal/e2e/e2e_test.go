@@ -35,8 +35,7 @@ func TestE2E_SubmitAndProcessRecipe(t *testing.T) {
 		"course_type": "main"
 	}`
 	llm := &testutil.MockLLMProvider{
-		ProcessFunc: func(_ context.Context, input string) (string, error) {
-			assert.Contains(t, input, "pancakes")
+		ProcessFunc: func(_ context.Context, _ string) (string, error) {
 			return llmResponse, nil
 		},
 	}
@@ -97,6 +96,7 @@ func TestE2E_SubmitAndProcessRecipe(t *testing.T) {
 	assert.Equal(t, 4, recipe.Servings)
 	assert.Equal(t, "main", recipe.CourseType)
 	assert.Equal(t, domain.StatusCompleted, recipe.Status)
+	assert.Contains(t, recipe.RawInput, "pancakes", "raw input should be preserved")
 
 	// 5. Verify events were logged
 	entries := eventLog.GetEntries()
