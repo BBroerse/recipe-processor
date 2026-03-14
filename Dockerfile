@@ -6,7 +6,7 @@ COPY . .
 RUN CGO_ENABLED=0 go build -o api ./cmd/api
 
 FROM alpine:latest
-RUN apk --no-cache add ca-certificates
+RUN apk --no-cache upgrade && apk --no-cache add ca-certificates
 WORKDIR /app
 COPY --from=builder /app/api .
 COPY migrations/ ./migrations/
