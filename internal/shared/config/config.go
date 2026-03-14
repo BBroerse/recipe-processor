@@ -20,12 +20,12 @@ type ServerConfig struct {
 }
 
 type DatabaseConfig struct {
-	Host       string
-	Port       int
-	User       string
-	Password   string
-	Name       string
-	SSLMode    string
+	Host     string
+	Port     int
+	User     string
+	Password string
+	Name     string
+	SSLMode  string
 }
 
 func (c *DatabaseConfig) DSN() string {
