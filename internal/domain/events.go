@@ -2,7 +2,6 @@ package domain
 
 import "time"
 
-// Event is the interface for all domain events.
 type Event interface {
 	EventType() string
 	OccurredAt() time.Time
@@ -15,34 +14,25 @@ type RecipeSubmitted struct {
 	RawInput  string
 }
 
-// EventType returns the event type identifier.
-func (e RecipeSubmitted) EventType() string { return "recipe.submitted" }
-
-// OccurredAt returns the timestamp of the event.
+func (e RecipeSubmitted) EventType() string    { return "recipe.submitted" }
 func (e RecipeSubmitted) OccurredAt() time.Time { return e.Timestamp }
 
-// RecipeProcessed is published when the LLM successfully processes a recipe.
+// RecipeProcessed is published after the LLM successfully parses a recipe.
 type RecipeProcessed struct {
 	RecipeID    string
 	Timestamp   time.Time
 	RawResponse string
 }
 
-// EventType returns the event type identifier.
-func (e RecipeProcessed) EventType() string { return "recipe.processed" }
-
-// OccurredAt returns the timestamp of the event.
+func (e RecipeProcessed) EventType() string    { return "recipe.processed" }
 func (e RecipeProcessed) OccurredAt() time.Time { return e.Timestamp }
 
-// RecipeProcessingFailed is published when the LLM fails to process a recipe.
+// RecipeProcessingFailed is published when LLM processing fails or returns unusable data.
 type RecipeProcessingFailed struct {
 	RecipeID  string
 	Timestamp time.Time
 	Error     string
 }
 
-// EventType returns the event type identifier.
-func (e RecipeProcessingFailed) EventType() string { return "recipe.processing_failed" }
-
-// OccurredAt returns the timestamp of the event.
+func (e RecipeProcessingFailed) EventType() string    { return "recipe.processing_failed" }
 func (e RecipeProcessingFailed) OccurredAt() time.Time { return e.Timestamp }

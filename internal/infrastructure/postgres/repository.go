@@ -12,17 +12,14 @@ import (
 
 const dbTimeout = 5 * time.Second
 
-// RecipeRepository implements domain.RecipeRepository using PostgreSQL.
 type RecipeRepository struct {
 	pool *pgxpool.Pool
 }
 
-// NewRecipeRepository creates a new PostgreSQL-backed recipe repository.
 func NewRecipeRepository(pool *pgxpool.Pool) *RecipeRepository {
 	return &RecipeRepository{pool: pool}
 }
 
-// Save inserts a new recipe into the database.
 func (r *RecipeRepository) Save(ctx context.Context, recipe *domain.Recipe) error {
 	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
@@ -42,7 +39,6 @@ func (r *RecipeRepository) Save(ctx context.Context, recipe *domain.Recipe) erro
 	return nil
 }
 
-// FindByID retrieves a recipe by its unique identifier.
 func (r *RecipeRepository) FindByID(ctx context.Context, id string) (*domain.Recipe, error) {
 	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
@@ -64,7 +60,6 @@ func (r *RecipeRepository) FindByID(ctx context.Context, id string) (*domain.Rec
 	return &recipe, nil
 }
 
-// UpdateStatus changes the processing status of a recipe.
 func (r *RecipeRepository) UpdateStatus(ctx context.Context, id string, status domain.RecipeStatus) error {
 	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()

@@ -18,7 +18,6 @@ type MockRecipeRepository struct {
 	UpdateResultFunc func(ctx context.Context, recipe *domain.Recipe) error
 }
 
-// NewMockRecipeRepository creates a MockRecipeRepository with default in-memory implementations.
 func NewMockRecipeRepository() *MockRecipeRepository {
 	m := &MockRecipeRepository{
 		Recipes: make(map[string]*domain.Recipe),
@@ -64,19 +63,18 @@ func NewMockRecipeRepository() *MockRecipeRepository {
 	return m
 }
 
-// Save delegates to SaveFunc.
 func (m *MockRecipeRepository) Save(ctx context.Context, recipe *domain.Recipe) error {
 	return m.SaveFunc(ctx, recipe)
 }
-// FindByID delegates to FindByIDFunc.
+
 func (m *MockRecipeRepository) FindByID(ctx context.Context, id string) (*domain.Recipe, error) {
 	return m.FindByIDFunc(ctx, id)
 }
-// UpdateStatus delegates to UpdateStatusFunc.
+
 func (m *MockRecipeRepository) UpdateStatus(ctx context.Context, id string, status domain.RecipeStatus) error {
 	return m.UpdateStatusFunc(ctx, id, status)
 }
-// UpdateResult delegates to UpdateResultFunc.
+
 func (m *MockRecipeRepository) UpdateResult(ctx context.Context, recipe *domain.Recipe) error {
 	return m.UpdateResultFunc(ctx, recipe)
 }
@@ -86,7 +84,6 @@ type MockLLMProvider struct {
 	ProcessFunc func(ctx context.Context, input string) (string, error)
 }
 
-// Process delegates to ProcessFunc.
 func (m *MockLLMProvider) Process(ctx context.Context, input string) (string, error) {
 	return m.ProcessFunc(ctx, input)
 }
@@ -100,7 +97,6 @@ type MockEventBus struct {
 	PublishFunc func(ctx context.Context, event domain.Event) error
 }
 
-// NewMockEventBus creates a MockEventBus with default publish behavior.
 func NewMockEventBus() *MockEventBus {
 	m := &MockEventBus{
 		Handlers: make(map[string][]domain.EventHandler),
@@ -114,23 +110,18 @@ func NewMockEventBus() *MockEventBus {
 	return m
 }
 
-// Publish delegates to PublishFunc.
 func (m *MockEventBus) Publish(ctx context.Context, event domain.Event) error {
 	return m.PublishFunc(ctx, event)
 }
-// Subscribe registers a handler for a specific event type.
+
 func (m *MockEventBus) Subscribe(eventType string, handler domain.EventHandler) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.Handlers[eventType] = append(m.Handlers[eventType], handler)
 }
-// Start is a no-op for the mock.
 func (m *MockEventBus) Start(_ context.Context) error { return nil }
+func (m *MockEventBus) Stop() error                   { return nil }
 
-// Stop is a no-op for the mock.
-func (m *MockEventBus) Stop() error { return nil }
-
-// Events returns a copy of all published events.
 func (m *MockEventBus) Events() []domain.Event {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -147,7 +138,6 @@ type MockEventLogRepository struct {
 	LogFunc func(ctx context.Context, entry *domain.EventLogEntry) error
 }
 
-// NewMockEventLogRepository creates a MockEventLogRepository with default log behavior.
 func NewMockEventLogRepository() *MockEventLogRepository {
 	m := &MockEventLogRepository{}
 	m.LogFunc = func(_ context.Context, entry *domain.EventLogEntry) error {
@@ -159,12 +149,10 @@ func NewMockEventLogRepository() *MockEventLogRepository {
 	return m
 }
 
-// Log delegates to LogFunc.
 func (m *MockEventLogRepository) Log(ctx context.Context, entry *domain.EventLogEntry) error {
 	return m.LogFunc(ctx, entry)
 }
 
-// GetEntries returns a copy of all logged event entries.
 func (m *MockEventLogRepository) GetEntries() []domain.EventLogEntry {
 	m.mu.Lock()
 	defer m.mu.Unlock()

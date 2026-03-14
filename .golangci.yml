@@ -31,8 +31,7 @@ linters:
     revive:
       rules:
         - name: exported
-          arguments:
-            - "checkPrivateReceivers"
+          disabled: true
     gocritic:
       enabled-tags:
         - diagnostic

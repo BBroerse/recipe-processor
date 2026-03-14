@@ -32,7 +32,6 @@ const SystemPrompt = `You are a recipe parser.
 					- Times should be in minutes (integers)
 					- All fields are required except CourseType (can be null if unclear)`
 
-// Client is an Ollama LLM client that implements domain.LLMProvider.
 type Client struct {
 	baseURL    string
 	model      string
@@ -40,7 +39,6 @@ type Client struct {
 	limiter    *rate.Limiter
 }
 
-// NewClient creates an Ollama client with rate limiting.
 func NewClient(baseURL, model string) *Client {
 	return &Client{
 		baseURL: baseURL,
@@ -64,7 +62,6 @@ type generateResponse struct {
 	Response string `json:"response"`
 }
 
-// Process sends recipe text to Ollama and returns the raw LLM response.
 func (c *Client) Process(ctx context.Context, input string) (string, error) {
 	if err := c.limiter.Wait(ctx); err != nil {
 		return "", fmt.Errorf("rate limit wait: %w", err)

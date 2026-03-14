@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// InMemoryEventBus is a channel-based event bus that dispatches events to registered handlers.
 type InMemoryEventBus struct {
 	handlers map[string][]domain.EventHandler
 	eventLog domain.EventLogRepository
@@ -21,7 +20,6 @@ type InMemoryEventBus struct {
 	mu       sync.RWMutex
 }
 
-// New creates an InMemoryEventBus with the given buffer size and event log repository.
 func New(bufferSize int, eventLog domain.EventLogRepository) *InMemoryEventBus {
 	return &InMemoryEventBus{
 		handlers: make(map[string][]domain.EventHandler),
@@ -30,7 +28,6 @@ func New(bufferSize int, eventLog domain.EventLogRepository) *InMemoryEventBus {
 	}
 }
 
-// Publish enqueues an event onto the bus channel.
 func (b *InMemoryEventBus) Publish(_ context.Context, event domain.Event) error {
 	select {
 	case b.ch <- event:
@@ -40,17 +37,15 @@ func (b *InMemoryEventBus) Publish(_ context.Context, event domain.Event) error 
 	}
 }
 
-// Subscribe registers a handler for a specific event type.
 func (b *InMemoryEventBus) Subscribe(eventType string, handler domain.EventHandler) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.handlers[eventType] = append(b.handlers[eventType], handler)
 }
 
-// Start begins the event processing goroutine.
 func (b *InMemoryEventBus) Start(ctx context.Context) error {
 	b.wg.Add(1)
-	go func() {
+	go func() { // #nosec G118 -- long-lived worker goroutine, not request-scoped
 		defer b.wg.Done()
 		for {
 			select {
@@ -59,7 +54,7 @@ func (b *InMemoryEventBus) Start(ctx context.Context) error {
 				b.dispatch(ctx, event)
 			case <-ctx.Done():
 				// Drain remaining events with a fresh context since the parent is cancelled
-				drainCtx := context.Background() //nolint:contextcheck // intentional: parent ctx is cancelled // #nosec G118
+				drainCtx := context.Background() //nolint:contextcheck // intentional: parent ctx is cancelled
 				for {
 					select {
 					case event := <-b.ch:
@@ -75,7 +70,6 @@ func (b *InMemoryEventBus) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop waits for all in-flight events to be processed.
 func (b *InMemoryEventBus) Stop() error {
 	b.wg.Wait()
 	return nil
