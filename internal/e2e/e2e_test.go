@@ -159,13 +159,16 @@ func TestE2E_SubmitAndLLMFails(t *testing.T) {
 		return err == nil && r.Status == domain.StatusFailed
 	}, 5*time.Second, 50*time.Millisecond)
 
-	// Verify failure event logged
-	entries := eventLog.GetEntries()
-	eventTypes := make([]string, len(entries))
-	for i, e := range entries {
-		eventTypes[i] = e.EventType
-	}
-	assert.Contains(t, eventTypes, "recipe.processing_failed")
+	// Verify failure event logged (async — event bus worker persists after handler returns)
+	assert.Eventually(t, func() bool {
+		entries := eventLog.GetEntries()
+		for _, e := range entries {
+			if e.EventType == "recipe.processing_failed" {
+				return true
+			}
+		}
+		return false
+	}, 5*time.Second, 50*time.Millisecond, "recipe.processing_failed event should be logged")
 }
 
 // TestE2E_HealthCheck verifies the health endpoint works in a full setup
