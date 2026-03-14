@@ -139,9 +139,28 @@ jobs:
           DB_PASSWORD: test
           DB_NAME: testdb
 
+  test-e2e:
+    name: E2E Tests
+    needs: [changes, test-unit, test-integration]
+    if: |
+      always() &&
+      needs.changes.outputs.code == 'true' &&
+      !contains(needs.*.result, 'failure') &&
+      !contains(needs.*.result, 'cancelled')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run E2E tests
+        run: go test -race -count=1 -run "E2E" ./internal/e2e/...
+
   build:
     name: Build
-    needs: [changes, lint, security, test-unit, test-integration]
+    needs: [changes, lint, security, test-unit, test-integration, test-e2e]
     if: |
       always() &&
       needs.changes.outputs.code == 'true' &&

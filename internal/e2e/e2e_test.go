@@ -23,7 +23,9 @@ import (
 // TestE2E_SubmitAndProcessRecipe tests the full flow:
 // HTTP POST → save to repo → publish event → LLM processes → structured data saved
 func TestE2E_SubmitAndProcessRecipe(t *testing.T) {
-
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
 	repo := testutil.NewMockRecipeRepository()
 	eventLog := testutil.NewMockEventLogRepository()
 
@@ -114,6 +116,9 @@ func TestE2E_SubmitAndProcessRecipe(t *testing.T) {
 // TestE2E_SubmitAndLLMFails tests the failure path:
 // HTTP POST → save → publish → LLM fails → status set to failed
 func TestE2E_SubmitAndLLMFails(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
 
 	repo := testutil.NewMockRecipeRepository()
 	eventLog := testutil.NewMockEventLogRepository()
@@ -167,6 +172,9 @@ func TestE2E_SubmitAndLLMFails(t *testing.T) {
 
 // TestE2E_HealthCheck verifies the health endpoint works in a full setup
 func TestE2E_HealthCheck(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e test in short mode")
+	}
 
 	repo := testutil.NewMockRecipeRepository()
 	eventLog := testutil.NewMockEventLogRepository()
