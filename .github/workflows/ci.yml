@@ -11,8 +11,35 @@ permissions:
   packages: write
 
 jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+      docker: ${{ steps.filter.outputs.docker }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - '**/*.go'
+              - 'go.mod'
+              - 'go.sum'
+              - '.golangci.yml'
+              - '.github/workflows/**'
+              - 'migrations/**'
+            docker:
+              - 'Dockerfile'
+              - 'docker-compose.yml'
+              - '.dockerignore'
+
   lint:
     name: Lint
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,6 +55,8 @@ jobs:
 
   security:
     name: Security
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -50,6 +79,8 @@ jobs:
 
   test-unit:
     name: Unit Tests
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -75,6 +106,8 @@ jobs:
 
   test-integration:
     name: Integration Tests
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -108,7 +141,12 @@ jobs:
 
   build:
     name: Build
-    needs: [lint, security, test-unit, test-integration]
+    needs: [changes, lint, security, test-unit, test-integration]
+    if: |
+      always() &&
+      needs.changes.outputs.code == 'true' &&
+      !contains(needs.*.result, 'failure') &&
+      !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -128,7 +166,12 @@ jobs:
 
   docker:
     name: Docker Build
-    needs: [build]
+    needs: [changes, build]
+    if: |
+      always() &&
+      (needs.changes.outputs.code == 'true' || needs.changes.outputs.docker == 'true') &&
+      !contains(needs.*.result, 'failure') &&
+      !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
