@@ -1,0 +1,103 @@
+package config
+
+import (
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
+)
+
+type Config struct {
+	Env      string // development, production
+	Server   ServerConfig
+	Database DatabaseConfig
+	Ollama   OllamaConfig
+	Log      LogConfig
+}
+
+type ServerConfig struct {
+	Port int
+}
+
+type DatabaseConfig struct {
+	Host       string
+	Port       int
+	User       string
+	Password   string
+	Name       string
+	SSLMode    string
+}
+
+func (c *DatabaseConfig) DSN() string {
+	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
+		c.User, c.Password, c.Host, c.Port, c.Name, c.SSLMode)
+}
+
+type OllamaConfig struct {
+	URL   string
+	Model string
+}
+
+type LogConfig struct {
+	Level string // debug, info, warn, error
+}
+
+// Load reads configuration from environment variables.
+// Required variables will cause a fatal error if missing.
+func Load() (*Config, error) {
+	var missing []string
+
+	env := getEnv("ENV", "development")
+
+	// In production, require secrets explicitly
+	dbPassword := os.Getenv("DB_PASSWORD")
+	if dbPassword == "" {
+		if env == "production" {
+			missing = append(missing, "DB_PASSWORD")
+		} else {
+			dbPassword = "secret"
+		}
+	}
+
+	if len(missing) > 0 {
+		return nil, fmt.Errorf("required environment variables not set: %s", strings.Join(missing, ", "))
+	}
+
+	dbPort, err := strconv.Atoi(getEnv("DB_PORT", "5432"))
+	if err != nil {
+		return nil, fmt.Errorf("invalid DB_PORT: %w", err)
+	}
+	serverPort, err := strconv.Atoi(getEnv("PORT", "8080"))
+	if err != nil {
+		return nil, fmt.Errorf("invalid PORT: %w", err)
+	}
+
+	return &Config{
+		Env: env,
+		Server: ServerConfig{
+			Port: serverPort,
+		},
+		Database: DatabaseConfig{
+			Host:     getEnv("DB_HOST", "localhost"),
+			Port:     dbPort,
+			User:     getEnv("DB_USER", "postgres"),
+			Password: dbPassword,
+			Name:     getEnv("DB_NAME", "recipes"),
+			SSLMode:  getEnv("DB_SSLMODE", "disable"),
+		},
+		Ollama: OllamaConfig{
+			URL:   getEnv("OLLAMA_URL", "http://localhost:11434"),
+			Model: getEnv("OLLAMA_MODEL", "tinyllama"),
+		},
+		Log: LogConfig{
+			Level: getEnv("LOG_LEVEL", "info"),
+		},
+	}, nil
+}
+
+func getEnv(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
