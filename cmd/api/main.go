@@ -82,7 +82,7 @@ func run() error {
 
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
-		Handler:      handler.RecoveryMiddleware(handler.SecurityHeadersMiddleware(handler.LoggingMiddleware(mux))),
+		Handler:      handler.RequestIDMiddleware(handler.RecoveryMiddleware(handler.SecurityHeadersMiddleware(handler.LoggingMiddleware(mux)))),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,
