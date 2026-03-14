@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	defaultTimeout     = 120 * time.Second
-	defaultRateLimit   = 5 // requests per second
-	maxResponseSize    = 1 << 20 // 1 MB
+	defaultTimeout   = 120 * time.Second
+	defaultRateLimit = 5       // requests per second
+	maxResponseSize  = 1 << 20 // 1 MB
 )
 
 // SystemPrompt is the default instruction sent to the LLM alongside the recipe text.
