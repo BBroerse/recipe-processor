@@ -2,8 +2,6 @@ package postgres_test
 
 import (
 	"context"
-	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 
@@ -37,47 +35,8 @@ func setupTestDB(t *testing.T) (*pgxpool.Pool, func()) {
 	connStr, err := container.ConnectionString(ctx, "sslmode=disable")
 	require.NoError(t, err)
 
-	// Run migrations — try file-based first, fall back to manual SQL
-	_, currentFile, _, _ := runtime.Caller(0)
-	migrationsDir := filepath.Join(filepath.Dir(currentFile), "..", "..", "..", "migrations")
-	migrateErr := postgres.Migrate("file://" + migrationsDir + " " + connStr)
-	if migrateErr != nil {
-		// Fallback: run migrations using the DSN directly
-		migrateErr = postgres.Migrate(connStr)
-	}
-	if migrateErr != nil {
-		// Manual migration for test — apply schemas directly
-		pool, poolErr := pgxpool.New(ctx, connStr)
-		require.NoError(t, poolErr)
-		_, err = pool.Exec(ctx, `
-			CREATE TABLE IF NOT EXISTS recipes (
-				id TEXT PRIMARY KEY,
-				raw_input TEXT NOT NULL,
-				raw_response TEXT DEFAULT '',
-				status TEXT NOT NULL DEFAULT 'pending',
-				created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-				updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-				title TEXT NOT NULL DEFAULT '',
-				ingredients TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
-				instructions TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
-				total_time INTEGER NOT NULL DEFAULT 0,
-				servings INTEGER NOT NULL DEFAULT 0,
-				course_type TEXT NOT NULL DEFAULT ''
-			);
-			CREATE TABLE IF NOT EXISTS event_log (
-				id TEXT PRIMARY KEY,
-				event_type TEXT NOT NULL,
-				recipe_id TEXT NOT NULL,
-				payload JSONB NOT NULL DEFAULT '{}',
-				created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-			);
-		`)
-		require.NoError(t, err)
-		return pool, func() {
-			pool.Close()
-			container.Terminate(ctx)
-		}
-	}
+	// Run embedded migrations (no filesystem path needed).
+	require.NoError(t, postgres.Migrate(connStr))
 
 	pool, err := pgxpool.New(ctx, connStr)
 	require.NoError(t, err)
@@ -173,7 +132,7 @@ func TestRecipeRepository_UpdateResult(t *testing.T) {
 
 	update := &domain.Recipe{
 		ID:           "test-3",
-		RawResponse:  `{"title":"Pasta"}`,
+		RawResponse:  "{\"title\":\"Pasta\"}",
 		Title:        "Pasta",
 		Ingredients:  []string{"pasta", "tomato", "cheese"},
 		Instructions: []string{"boil", "mix", "serve"},
@@ -192,7 +151,7 @@ func TestRecipeRepository_UpdateResult(t *testing.T) {
 	assert.Equal(t, 25, found.TotalTime)
 	assert.Equal(t, 4, found.Servings)
 	assert.Equal(t, "main", found.CourseType)
-	assert.Equal(t, `{"title":"Pasta"}`, found.RawResponse)
+	assert.Equal(t, "{\"title\":\"Pasta\"}", found.RawResponse)
 }
 
 func TestRecipeRepository_FindByID_NotFound(t *testing.T) {
@@ -223,7 +182,7 @@ func TestEventLogRepository_Log(t *testing.T) {
 		ID:        "evt-1",
 		EventType: "recipe.submitted",
 		RecipeID:  "r-1",
-		Payload:   `{"recipe_id":"r-1","raw_input":"test"}`,
+		Payload:   "{\"recipe_id\":\"r-1\",\"raw_input\":\"test\"}",
 		CreatedAt: time.Now().UTC(),
 	}
 

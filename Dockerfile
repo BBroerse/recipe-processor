@@ -10,7 +10,6 @@ RUN apk --no-cache upgrade && apk --no-cache add ca-certificates
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app
 COPY --from=builder /app/api .
-COPY migrations/ ./migrations/
 USER appuser
 EXPOSE 8080
 CMD ["./api"]
